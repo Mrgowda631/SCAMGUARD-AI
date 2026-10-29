@@ -35,3 +35,10 @@ scratch/
 Thumbs.db
 .vscode/
 .idea/
+
+node_modules/
+.env
+client/node_modules/
+server/node_modules/
+dist/
+build/
