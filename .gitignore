@@ -3,6 +3,8 @@ node_modules/
 dist/
 build/
 .cache/
+.vite/
+client/.vite/
 
 # Environment files
 .env
