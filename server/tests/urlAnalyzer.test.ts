@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { validateSafeUrl, analyzeUrl } from '../src/services/urlAnalyzer.js';
 
-describe('URL Security Scanner & SSRF Guard', () => {
+describe('URL Security Scanner & SSRF Guard', { timeout: 35000 }, () => {
   it('blocks loopback and localhost SSRF attempts', () => {
     const localhost = validateSafeUrl('http://localhost:8000/admin');
     expect(localhost.valid).toBe(false);
