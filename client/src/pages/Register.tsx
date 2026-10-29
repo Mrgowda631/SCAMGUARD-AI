@@ -105,7 +105,6 @@ export const Register: React.FC = () => {
         aria-hidden="true"
         poster="/logo.png"
       >
-        <source src="/videos/register-background.mp4" type="video/mp4" />
         <source src="/hero-bg.mp4" type="video/mp4" />
         Your browser does not support the video tag.
       </video>

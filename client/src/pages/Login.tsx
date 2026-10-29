@@ -107,8 +107,6 @@ export const Login: React.FC = () => {
         aria-hidden="true"
         poster="/logo.png"
       >
-        <source src="/videos/login-background.mp4" type="video/mp4" />
-        <source src="/videos/register-background.mp4" type="video/mp4" />
         <source src="/hero-bg.mp4" type="video/mp4" />
         Your browser does not support the video tag.
       </video>
