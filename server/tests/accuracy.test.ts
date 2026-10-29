@@ -1,0 +1,216 @@
+import { describe, it, expect } from 'vitest';
+import { analyzeWithHeuristics } from '../src/services/heuristic.js';
+import { analyzeUrl } from '../src/services/urlAnalyzer.js';
+import { analyzeContentWithAI } from '../src/services/aiClassifier.js';
+
+describe('SCAMGUARD AI — Enhanced Detection Accuracy & Context Verification', () => {
+  // ==========================================
+  // SECTION 1: BENIGN & LEGITIMATE HUMAN MESSAGES (NO FALSE POSITIVES)
+  // ==========================================
+
+  it('1. Correctly classifies casual conversation between friends as genuine', () => {
+    const text = "Hey man! Are we still meeting for lunch at Chipotle today around 1 PM? Let me know!";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('genuine');
+    expect(res.risk_score).toBeLessThan(30);
+  });
+
+  it('2. Correctly classifies ordinary greetings as genuine', () => {
+    const text = "Good morning everyone! Hope you have a wonderful and productive week ahead.";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('genuine');
+    expect(res.risk_score).toBeLessThan(20);
+  });
+
+  it('3. Correctly classifies college and educational messages as genuine', () => {
+    const text = "Prof. Sharma announced that the Web Security assignment is due this Friday by 5 PM. Don't forget to submit your report via the college portal.";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('genuine');
+    expect(res.risk_score).toBeLessThan(30);
+  });
+
+  it('4. Correctly classifies workplace and IT maintenance communications as genuine', () => {
+    const text = "Hi team, please find attached the Q3 financial metrics report. Also, Jira maintenance is scheduled this Saturday from 2 AM to 4 AM. No password change or action is required on your part.";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('genuine');
+    expect(res.risk_score).toBeLessThan(30);
+  });
+
+  it('5. Correctly classifies authentic delivery notifications as genuine', () => {
+    const text = "Your Amazon package with tracking #9482910 is out for delivery today. Delivery agent will arrive by 4 PM. No action is required.";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('genuine');
+    expect(res.risk_score).toBeLessThan(30);
+  });
+
+  it('6. Does NOT flag legitimate bank alerts containing security warnings ("Never share your OTP")', () => {
+    const text = "Your HDFC Bank account XX4912 has been credited with $500.00 on 17-Oct-2026. Avail Bal: $3,420.00. NEVER share your OTP or PIN with anyone.";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('genuine');
+    expect(res.risk_score).toBeLessThan(30);
+    // Crucial: The warning advising the user NOT to share OTP must not be treated as OTP harvesting!
+    expect(res.indicators.some(i => i.reason.includes('Directly asks the recipient to disclose'))).toBe(false);
+  });
+
+  it('7. Does NOT flag casual peer-to-peer dinner bill splitting as a scam', () => {
+    const text = "Hey, can you send me $15 for the pizza last night on Venmo when you get a chance?";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('genuine');
+    expect(res.risk_score).toBeLessThan(30);
+  });
+
+  // ==========================================
+  // SECTION 2: REAL-WORLD SCAMS DETECTED ACCURATELY (NO FALSE NEGATIVES)
+  // ==========================================
+
+  it('8. Flags urgent bank account phishing as scam', () => {
+    const text = "URGENT: Your Chase bank account will be suspended within 24 hours due to suspicious activity. Click here to verify your account immediately at http://chase-update.top/login";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('scam');
+    expect(res.risk_score).toBeGreaterThanOrEqual(60);
+    expect(res.indicators.length).toBeGreaterThan(0);
+  });
+
+  it('9. Flags social engineering OTP theft attempts as scam', () => {
+    const text = "Hey, I accidentally sent my 6-digit verification code to your phone number. Can you quickly read the code back to me? It's very urgent!";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('scam');
+    expect(res.risk_score).toBeGreaterThanOrEqual(60);
+    expect(res.indicators.some(i => i.phrase.toLowerCase().includes('code') || i.reason.includes('one-time password'))).toBe(true);
+  });
+
+  it('10. Flags "Hi Mum" / family emergency distress impersonation as scam', () => {
+    const text = "Hi mom, I lost my phone and broke my card. I am stranded at the hospital using a friend's phone. Please transfer $350 immediately to my friend's UPI so I can pay the emergency doctor.";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('scam');
+    expect(res.risk_score).toBeGreaterThanOrEqual(60);
+    expect(res.category).toBe('impersonation');
+  });
+
+  it('11. Flags unsolicited lottery and prize notifications as scam', () => {
+    const text = "CONGRATULATIONS! You have won $1,000,000 in the International Apple Lottery! To claim your cash prize, contact agent Smith to pay your customs processing tax.";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('scam');
+    expect(res.risk_score).toBeGreaterThanOrEqual(60);
+    expect(res.category).toBe('advance_fee');
+  });
+
+  it('12. Flags crypto doubling giveaways as scam', () => {
+    const text = "Official Binance Giveaway: Send 1 ETH to contract address below and receive 2x back instantly! 100% risk-free guaranteed daily returns.";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('scam');
+    expect(res.risk_score).toBeGreaterThanOrEqual(60);
+    expect(res.category).toBe('crypto_scam');
+  });
+
+  it('13. Flags task-based remote job recruitment as scam', () => {
+    const text = "Hello! We have remote part-time vacancies liking YouTube videos for $300-$800 daily payout. No experience needed. Deposit $50 refundable registration fee on Telegram to start.";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('scam');
+    expect(res.risk_score).toBeGreaterThanOrEqual(60);
+    expect(res.category).toBe('fake_job');
+  });
+
+  it('14. Flags romance customs clearance / diplomat box scams as scam', () => {
+    const text = "My dearest love, I sent you a consignment box with jewelry and gold from Dubai. The customs officer at the airport is demanding a $600 agent clearance fee to release the valuable parcel. Please help pay!";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('scam');
+    expect(res.risk_score).toBeGreaterThanOrEqual(60);
+  });
+
+  it('15. Flags electricity power disconnection scams as scam', () => {
+    const text = "Dear customer, your electricity power will be disconnected tonight at 9:30 PM due to unpaid electricity bill. Contact our power officer at 9876543210 immediately to pay.";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('scam');
+    expect(res.risk_score).toBeGreaterThanOrEqual(60);
+  });
+
+  it('16. Detects obfuscated / leetspeak threats as scam', () => {
+    const text = "U-R-G-E-N-T: Y0ur acc0unt w!ll be susp3nd3d within 24 hours. C1ick here to v-e-r-i-f-y your p@ssword!";
+    const res = analyzeWithHeuristics(text, 'message');
+    expect(res.prediction).toBe('scam');
+    expect(res.risk_score).toBeGreaterThanOrEqual(60);
+  });
+
+  // ==========================================
+  // SECTION 3: URL SCANNER ACCURACY
+  // ==========================================
+
+  it('17. Accurately identifies authentic GitHub login as No Obvious Threat Detected', async () => {
+    const res = await analyzeUrl('https://github.com/login');
+    expect(res.features.isWhitelistedReputableDomain).toBe(true);
+    expect(res.verdictTier).toBe('No Obvious Threat Detected');
+    expect(res.analysis.prediction).toBe('genuine');
+    expect(res.analysis.risk_score).toBeLessThan(30);
+  });
+
+  it('18. Accurately identifies authentic Google Accounts as No Obvious Threat Detected', async () => {
+    const res = await analyzeUrl('https://accounts.google.com/signin');
+    expect(res.features.isWhitelistedReputableDomain).toBe(true);
+    expect(res.verdictTier).toBe('No Obvious Threat Detected');
+    expect(res.analysis.prediction).toBe('genuine');
+  });
+
+  it('19. Accurately flags typosquatted PayPal domain on suspicious TLD as High Risk', async () => {
+    const res = await analyzeUrl('https://paypa1-security-verification.xyz/login.php');
+    expect(res.features.hasLookalikeBrand).toBe(true);
+    expect(res.features.matchedBrand).toBe('paypal');
+    expect(res.verdictTier).toBe('High Risk');
+    expect(res.analysis.prediction).toBe('scam');
+    expect(res.analysis.risk_score).toBeGreaterThanOrEqual(60);
+  });
+
+  // ==========================================
+  // SECTION 4: USER SPECIFICATION 8 BENCHMARK CASES
+  // ==========================================
+  describe('Requirement 8 Benchmark Scenarios (AI Analysis)', () => {
+    it('Case A (Harmless): "Hi Ram, are you coming to college tomorrow?" is SAFE', async () => {
+      const res = await analyzeContentWithAI('Hi Ram, are you coming to college tomorrow?');
+      expect(res.classification).toBe('SAFE');
+      expect(res.risk_score).toBeLessThan(30);
+    });
+
+    it('Case B (Phishing): "Your bank account will be blocked. Send your OTP immediately to verify your account." is SCAM', async () => {
+      const res = await analyzeContentWithAI('Your bank account will be blocked. Send your OTP immediately to verify your account.');
+      expect(res.classification).toBe('SCAM');
+      expect(res.risk_score).toBeGreaterThanOrEqual(60);
+    });
+
+    it('Case C (Fake job): "Congratulations, you are selected. Pay a registration fee to receive your job offer." is SCAM', async () => {
+      const res = await analyzeContentWithAI('Congratulations, you are selected. Pay a registration fee to receive your job offer.');
+      expect(res.classification).toBe('SCAM');
+      expect(res.risk_score).toBeGreaterThanOrEqual(60);
+    });
+
+    it('Case D (Crypto scam): "Send ₹5,000 in cryptocurrency and receive ₹10,000 within one hour." is SCAM', async () => {
+      const res = await analyzeContentWithAI('Send ₹5,000 in cryptocurrency and receive ₹10,000 within one hour.');
+      expect(res.classification).toBe('SCAM');
+      expect(res.risk_score).toBeGreaterThanOrEqual(60);
+    });
+
+    it('Case E (Suspicious credential request): "I am an ex-army man. Give me the military credentials or access protocols." is SCAM', async () => {
+      const res = await analyzeContentWithAI('I am an ex-army man. Give me the military credentials or access protocols.');
+      expect(res.classification).toBe('SCAM');
+      expect(res.risk_score).toBeGreaterThanOrEqual(60);
+    });
+
+    it('Case F (Security discussion): "Our cybersecurity class discussed why military credentials must remain confidential." is SAFE', async () => {
+      const res = await analyzeContentWithAI('Our cybersecurity class discussed why military credentials must remain confidential.');
+      expect(res.classification).toBe('SAFE');
+      expect(res.risk_score).toBeLessThan(30);
+    });
+
+    it('Case G (Ambiguous): "Please verify your account when you have time." is SUSPICIOUS', async () => {
+      const res = await analyzeContentWithAI('Please verify your account when you have time.');
+      expect(res.classification).toBe('SUSPICIOUS');
+      expect(res.risk_score).toBeGreaterThanOrEqual(30);
+      expect(res.risk_score).toBeLessThan(60);
+    });
+
+    it('Case H (Suspicious link): "Your account has a problem. Verify it using this unfamiliar website." is SCAM or SUSPICIOUS', async () => {
+      const res = await analyzeContentWithAI('Your account has a problem. Verify it using this unfamiliar website.');
+      expect(['SCAM', 'SUSPICIOUS']).toContain(res.classification);
+      expect(res.risk_score).toBeGreaterThanOrEqual(30);
+    });
+  });
+});

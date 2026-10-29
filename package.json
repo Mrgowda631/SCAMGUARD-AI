@@ -1,0 +1,32 @@
+{
+  "name": "scamguard-ai",
+  "version": "1.0.0",
+  "description": "SCAMGUARD AI — Social Media Scam Detection System (BCA Final-Year Cybersecurity & AI Project)",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n \"SERVER,CLIENT\" -c \"cyan,blue\" \"npm run dev --workspace=server\" \"npm run dev --workspace=client\"",
+    "start": "npm run dev",
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "build": "npm run build --workspace=server && npm run build --workspace=client",
+    "test": "npm run test --workspace=server",
+    "seed:admin": "npm run seed:admin --workspace=server",
+    "install:all": "npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "keywords": [
+    "cybersecurity",
+    "scam-detection",
+    "gemini-ai",
+    "threat-intelligence",
+    "social-media-security"
+  ],
+  "author": "ScamGuard AI Team",
+  "license": "ISC"
+}
