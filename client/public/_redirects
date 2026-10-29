@@ -1,0 +1,4 @@
+# Netlify Single Page Application (SPA) Redirects
+# Forward API requests to the production backend if configured
+# Fallback all client routes (/overview, /login, /content-scanner, etc.) to index.html with HTTP 200
+/*    /index.html   200

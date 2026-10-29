@@ -146,12 +146,12 @@ async function callGemini(content: string, type: string, platform?: string): Pro
 
   const prompt = `Analyze this untrusted ${type} submission ${platform ? `(platform: ${platform})` : ''}:\n"""\n${content.slice(0, 4000)}\n"""`;
 
-  // Candidate models ordered for reliability and speed (Gemini 3.5-flash-lite / 3.5-flash / 3.8-flash in 2026)
+  // Candidate models ordered for reliability and speed (Gemini 3.5-flash / 3.5-flash-lite / 3.8-flash)
   const candidateModels = Array.from(
     new Set([
       config.geminiModel,
-      'gemini-3.5-flash-lite',
       'gemini-3.5-flash',
+      'gemini-3.5-flash-lite',
       'gemini-3.8-flash',
     ])
   );

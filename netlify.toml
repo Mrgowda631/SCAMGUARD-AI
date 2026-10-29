@@ -1,0 +1,42 @@
+# ==============================================================================
+# NETLIFY CONFIGURATION FOR SCAMGUARD AI
+# ==============================================================================
+
+[build]
+  # In a monorepo workspace, build the React + Vite frontend client
+  command = "npm run build --workspace=client"
+  publish = "client/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Optional: If you deploy the Express SOC backend to Render, Railway, or a VPS,
+# uncomment and update the URL below so Netlify seamlessly proxies /api/* calls
+# without CORS restrictions or cookie domain mismatch:
+#
+# [[redirects]]
+#   from = "/api/*"
+#   to = "https://your-scamguard-backend.onrender.com/api/:splat"
+#   status = 200
+#   force = true
+
+# Primary Single Page Application (SPA) rewrite rule:
+# Ensures routes like /overview, /content-scanner, /login, /awareness work cleanly on browser refresh
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Recommended security and caching headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
