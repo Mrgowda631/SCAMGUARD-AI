@@ -183,6 +183,7 @@ async function callGemini(content: string, type: string, platform?: string): Pro
     } catch (err: any) {
       lastError = err;
       console.warn(`[Gemini Model ${modelName} warning]:`, err?.message || err);
+      if (err?.message?.includes("RESOURCE_EXHAUSTED") || err?.message?.includes("limit exceeded") || err?.message?.includes("quota") || err?.status === 429) { break; }
     }
   }
 
@@ -355,13 +356,15 @@ export async function analyzeContentWithAI(
   // CRITICAL REQUIREMENT: Do NOT assign 0/100 risk score automatically when AI fails.
   console.warn('[AI Classifier Fallback] Operating in heuristic fallback mode.');
 
-  const heuristicHasThreats = heuristicResult.risk_score > 25 || heuristicResult.indicators.length > 0 || urlRiskBonus > 0;
-
   let fallbackScore: number;
   let fallbackClass: 'SAFE' | 'SUSPICIOUS' | 'SCAM';
   let fallbackExplanation: string;
 
-  if (heuristicHasThreats) {
+  if (heuristicResult.prediction === 'genuine' && urlRiskBonus === 0) {
+    fallbackScore = heuristicResult.risk_score;
+    fallbackClass = 'SAFE';
+    fallbackExplanation = `${heuristicResult.explanation} (Note: Offline heuristic rule-matching was used because AI service was unavailable.)`;
+  } else if (heuristicResult.risk_score > 25 || urlRiskBonus > 0) {
     fallbackScore = Math.min(100, Math.max(heuristicResult.risk_score, urlRiskBonus));
     fallbackClass = fallbackScore >= 60 ? 'SCAM' : 'SUSPICIOUS';
     fallbackExplanation = `${heuristicResult.explanation} (Note: Offline heuristic rule-matching was used because AI service was unavailable.)`;

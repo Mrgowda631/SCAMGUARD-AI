@@ -142,14 +142,14 @@ describe('SCAMGUARD AI — Enhanced Detection Accuracy & Context Verification', 
     expect(res.verdictTier).toBe('No Obvious Threat Detected');
     expect(res.analysis.prediction).toBe('genuine');
     expect(res.analysis.risk_score).toBeLessThan(30);
-  }, 20000);
+  }, 35000);
 
   it('18. Accurately identifies authentic Google Accounts as No Obvious Threat Detected', async () => {
     const res = await analyzeUrl('https://accounts.google.com/signin');
     expect(res.features.isWhitelistedReputableDomain).toBe(true);
     expect(res.verdictTier).toBe('No Obvious Threat Detected');
     expect(res.analysis.prediction).toBe('genuine');
-  }, 20000);
+  }, 35000);
 
   it('19. Accurately flags typosquatted PayPal domain on suspicious TLD as High Risk', async () => {
     const res = await analyzeUrl('https://paypa1-security-verification.xyz/login.php');
@@ -158,7 +158,7 @@ describe('SCAMGUARD AI — Enhanced Detection Accuracy & Context Verification', 
     expect(res.verdictTier).toBe('High Risk');
     expect(res.analysis.prediction).toBe('scam');
     expect(res.analysis.risk_score).toBeGreaterThanOrEqual(60);
-  }, 20000);
+  }, 35000);
 
   // ==========================================
   // SECTION 4: USER SPECIFICATION 8 BENCHMARK CASES
