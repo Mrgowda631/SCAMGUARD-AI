@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../services/api';
+import { api, getApiBaseUrl } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { AlertTriangle, WifiOff, Sparkles, X, RefreshCw, LogIn } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -41,6 +41,9 @@ export const ConnectionBanner: React.FC = () => {
 
   // 1. Backend Offline / Unavailable Warning (Exact Requirement 3)
   if (!backendAvailable || authStatus === 'degraded') {
+    const isDev = import.meta.env.DEV;
+    const apiUrl = getApiBaseUrl();
+
     return (
       <div className="mb-6 p-4 rounded-xl bg-amber-950/70 border border-amber-500/50 text-amber-200 text-xs shadow-lg animate-fade-in flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-start sm:items-center space-x-3">
@@ -50,14 +53,22 @@ export const ConnectionBanner: React.FC = () => {
           <div>
             <div className="flex items-center space-x-2">
               <span className="font-bold font-mono tracking-wider text-amber-100 uppercase">
-                Backend unavailable — some features may be limited.
+                Backend API Disconnected — Local Fallback Mode
               </span>
               <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-900 border border-amber-700 font-mono text-amber-300">
-                Port 8000
+                {apiUrl}
               </span>
             </div>
             <p className="text-amber-300/90 mt-0.5 leading-relaxed">
-              Unable to reach the backend SOC API server. ScamGuard is operating in <strong className="text-white">Client Heuristic Mode</strong> so you can still scan text, analyze URLs, and inspect threats. To enable persistent telemetry and database storage, execute <code className="px-1.5 py-0.5 rounded bg-black/40 text-cyan-300 font-mono text-[11px]">npm run dev:server</code> in your terminal.
+              {isDev ? (
+                <>
+                  Unable to reach the backend SOC API server. Operating in <strong className="text-white">Client Heuristic Mode</strong> so you can still scan text, analyze URLs, and inspect threats. To enable persistent telemetry and database storage, execute <code className="px-1.5 py-0.5 rounded bg-black/40 text-cyan-300 font-mono text-[11px]">npm run dev:server</code> in your terminal.
+                </>
+              ) : (
+                <>
+                  Unable to reach the production backend API. Operating in <strong className="text-white">Client Heuristic Mode</strong> so you can still scan text and analyze URLs. To enable persistent telemetry and database storage, configure <code className="px-1.5 py-0.5 rounded bg-black/40 text-cyan-300 font-mono text-[11px]">VITE_API_URL</code> in Netlify Site Settings to point to your live backend.
+                </>
+              )}
             </p>
           </div>
         </div>

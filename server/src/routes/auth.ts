@@ -95,6 +95,7 @@ authRouter.post('/register', authRateLimiter, async (req: Request, res: Response
   res.status(201).json({
     success: true,
     message: 'Account registered successfully.',
+    sessionId,
     user: {
       id: userId,
       name: parsed.name,
@@ -169,6 +170,7 @@ authRouter.post('/login', authRateLimiter, async (req: Request, res: Response) =
   res.json({
     success: true,
     message: 'Authentication successful.',
+    sessionId,
     user: {
       id: user.id,
       name: user.name,

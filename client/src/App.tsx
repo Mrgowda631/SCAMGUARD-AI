@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { Navbar } from './components/Navbar';
@@ -7,6 +7,7 @@ import { Sidebar } from './components/Sidebar';
 import { ToastContainer } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ConnectionBanner } from './components/ConnectionBanner';
+import { getApiBaseUrl } from './services/api';
 
 // Pages
 import { Overview } from './pages/Overview';
@@ -98,20 +99,51 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }
 
   if (authStatus === 'degraded') {
+    const isDev = import.meta.env.DEV;
+    const apiUrl = getApiBaseUrl();
+
     return (
-      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-center space-y-4">
-        <p className="text-sm font-semibold text-amber-200">
-          Backend server unreachable (port 8000)
+      <div className="max-w-md mx-auto my-12 p-6 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-center space-y-4 shadow-xl">
+        <div className="w-12 h-12 mx-auto rounded-full bg-amber-900/60 border border-amber-600/50 flex items-center justify-center text-amber-300">
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-amber-200">
+            Backend API Disconnected
+          </p>
+          <p className="text-[11px] font-mono text-cyan-400 mt-0.5">
+            Target Endpoint: {apiUrl}
+          </p>
+        </div>
+        <p className="text-xs text-slate-300 leading-relaxed">
+          {isDev ? (
+            <>
+              This protected route requires an active backend API and database connection. Start the local server with{' '}
+              <code className="px-1.5 py-0.5 rounded bg-black/60 text-cyan-300 font-mono">npm run dev:server</code>.
+            </>
+          ) : (
+            <>
+              Unable to establish a connection with the production database. Configure{' '}
+              <code className="px-1.5 py-0.5 rounded bg-black/60 text-cyan-300 font-mono">VITE_API_URL</code> in your Netlify Site Settings or ensure your backend service is running.
+            </>
+          )}
         </p>
-        <p className="text-xs text-slate-400">
-          This protected route requires an active connection to the database. Start the server with <code className="px-1.5 py-0.5 rounded bg-black/60 text-cyan-300 font-mono">npm run dev:server</code>.
-        </p>
-        <button
-          onClick={() => retryConnection()}
-          className="px-4 py-2 rounded-lg text-xs font-mono font-bold bg-amber-900/80 hover:bg-amber-800 text-amber-100 transition-colors"
-        >
-          Retry Connection
-        </button>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
+          <button
+            onClick={() => retryConnection()}
+            className="w-full sm:w-auto px-4 py-2 rounded-lg text-xs font-mono font-bold bg-amber-900/80 hover:bg-amber-800 text-amber-100 transition-colors"
+          >
+            Retry Connection
+          </button>
+          <Link
+            to="/awareness"
+            className="w-full sm:w-auto px-4 py-2 rounded-lg text-xs font-mono bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors text-center"
+          >
+            Awareness Hub
+          </Link>
+        </div>
       </div>
     );
   }

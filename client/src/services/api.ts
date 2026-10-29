@@ -8,7 +8,12 @@ import {
   AdminOverviewData,
 } from '../types';
 
-const BASE_URL = '/api';
+const rawBaseUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/+$/, '');
+const BASE_URL = rawBaseUrl
+  ? (rawBaseUrl.endsWith('/api') ? rawBaseUrl : `${rawBaseUrl}/api`)
+  : '/api';
+
+export const getApiBaseUrl = (): string => BASE_URL;
 
 export interface RequestOptions extends RequestInit {
   timeoutMs?: number;
@@ -27,6 +32,12 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     const headers = new Headers(fetchOptions.headers || {});
     if (!headers.has('Content-Type') && !(fetchOptions.body instanceof FormData)) {
       headers.set('Content-Type', 'application/json');
+    }
+
+    // Attach session token for cross-origin authentication (Safari / Netlify / Render compatibility)
+    const storedSession = localStorage.getItem('scamguard_session_id');
+    if (storedSession && !headers.has('X-Session-Id')) {
+      headers.set('X-Session-Id', storedSession);
     }
 
     const response = await fetch(`${BASE_URL}${endpoint}`, {
@@ -100,7 +111,7 @@ export const DEFAULT_ANALYTICS: AnalyticsData = {
     { type: 'social', count: 0 },
   ],
   recentScans: [],
-  disclaimer: 'Displaying local client baseline telemetry. Connect backend on port 8000 for persistent database scans.',
+  disclaimer: 'Displaying local client baseline telemetry. Connect to the backend API service for persistent database telemetry.',
 };
 
 export const api = {
@@ -109,25 +120,40 @@ export const api = {
   getSettingsInfo: (options: RequestOptions = {}) => request<any>('/settings/info', { timeoutMs: 3500, ...options }),
 
   // Auth
-  register: (name: string, email: string, password: string) =>
-    request<{ success: boolean; user: User; message: string }>('/auth/register', {
+  register: async (name: string, email: string, password: string) => {
+    const res = await request<{ success: boolean; user: User; message: string; sessionId?: string }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ name, email, password }),
       timeoutMs: 8000,
-    }),
+    });
+    if (res.sessionId) {
+      localStorage.setItem('scamguard_session_id', res.sessionId);
+    }
+    return res;
+  },
 
-  login: (email: string, password: string) =>
-    request<{ success: boolean; user: User; message: string }>('/auth/login', {
+  login: async (email: string, password: string) => {
+    const res = await request<{ success: boolean; user: User; message: string; sessionId?: string }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
       timeoutMs: 8000,
-    }),
+    });
+    if (res.sessionId) {
+      localStorage.setItem('scamguard_session_id', res.sessionId);
+    }
+    return res;
+  },
 
-  logout: () =>
-    request<{ success: boolean; message: string }>('/auth/logout', {
-      method: 'POST',
-      timeoutMs: 3000,
-    }),
+  logout: async () => {
+    try {
+      return await request<{ success: boolean; message: string }>('/auth/logout', {
+        method: 'POST',
+        timeoutMs: 3000,
+      });
+    } finally {
+      localStorage.removeItem('scamguard_session_id');
+    }
+  },
 
   getMe: (options: RequestOptions = {}) =>
     request<{ success: boolean; user: User }>('/auth/me', { timeoutMs: 3500, ...options }),

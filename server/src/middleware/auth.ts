@@ -63,7 +63,7 @@ export function setSessionCookie(res: Response, sessionId: string): void {
   res.cookie(SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
     secure: config.isProd, // true in production (HTTPS)
-    sameSite: config.isProd ? 'strict' : 'lax',
+    sameSite: config.isProd ? 'none' : 'lax', // 'none' allows cross-origin cookies between Netlify and backend
     maxAge: SESSION_DURATION_MS,
     path: '/',
   });
@@ -73,7 +73,7 @@ export function clearSessionCookie(res: Response): void {
   res.clearCookie(SESSION_COOKIE_NAME, {
     httpOnly: true,
     secure: config.isProd,
-    sameSite: config.isProd ? 'strict' : 'lax',
+    sameSite: config.isProd ? 'none' : 'lax',
     path: '/',
   });
 }

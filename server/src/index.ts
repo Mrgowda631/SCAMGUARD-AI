@@ -45,11 +45,20 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (e.g. mobile apps, curl, same-origin)
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allow requests with no origin (e.g. mobile apps, curl, same-origin, SSRF tests)
+    if (!origin) {
+      return callback(null, true);
+    }
+    const isAllowed =
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.netlify.app') ||
+      origin.includes('netlify.app') ||
+      !config.isProd;
+
+    if (isAllowed) {
       callback(null, true);
     } else {
-      callback(null, true); // Permissive in dev, or origin matched
+      callback(null, true); // Permissive in dev or dynamic origin reflection
     }
   },
   credentials: true,
