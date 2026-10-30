@@ -173,6 +173,28 @@ export const ReportDetail: React.FC = () => {
           );
         })()}
 
+        {/* Sender Intent & Requested Action */}
+        {(report.intent || report.requestedAction) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
+            {report.intent && (
+              <div>
+                <span className="font-mono text-cyan-400 font-bold uppercase tracking-wider text-[11px] block mb-1">
+                  Sender Intent:
+                </span>
+                <p className="text-slate-200 font-medium">{report.intent}</p>
+              </div>
+            )}
+            {report.requestedAction && (
+              <div>
+                <span className="font-mono text-amber-400 font-bold uppercase tracking-wider text-[11px] block mb-1">
+                  Requested Action:
+                </span>
+                <p className="text-slate-200 font-medium">{report.requestedAction}</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Submitted Telemetry Input */}
         <div className="space-y-2">
           <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-slate-400">

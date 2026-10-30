@@ -1,4 +1,4 @@
-export interface User {
+﻿export interface User {
   id: string;
   name: string;
   email: string;
@@ -11,17 +11,29 @@ export interface ScanIndicator {
   reason: string;
 }
 
+export interface UrlAnalysisDetail {
+  found: boolean;
+  urls: string[];
+  findings: string[];
+}
+
 export interface AnalysisResult {
-  // Required structured fields
+  // Required structured fields (Phase 5 Standardized Response)
   classification?: 'SAFE' | 'SUSPICIOUS' | 'SCAM';
   risk_score: number;
   confidence: number;
   risk_level?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  intent?: string;
+  requested_action?: string;
+  requestedAction?: string;
   detected_indicators?: string[];
+  evidence?: string[];
   explanation: string;
   recommended_action?: string;
-  url_analysis?: string;
-  limitations?: string;
+  url_analysis?: string | UrlAnalysisDetail;
+  analysis_source?: 'AI_AND_HEURISTICS' | 'HEURISTICS_FALLBACK';
+  limitations?: string | string[];
+  requires_review?: boolean;
 
   // Legacy/compatibility fields
   prediction: 'scam' | 'suspicious' | 'genuine';
@@ -45,12 +57,18 @@ export interface ScanItem {
   confidence: number;
   riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   category: string;
+  intent?: string;
+  requested_action?: string;
+  requestedAction?: string;
   detected_indicators?: string[];
+  evidence?: string[];
   indicators?: ScanIndicator[];
   explanation?: string;
   recommended_action?: string;
-  url_analysis?: string;
-  limitations?: string;
+  url_analysis?: string | UrlAnalysisDetail;
+  analysis_source?: 'AI_AND_HEURISTICS' | 'HEURISTICS_FALLBACK';
+  limitations?: string | string[];
+  requires_review?: boolean;
   recommendations?: string[];
   engine: 'openai' | 'gemini' | 'heuristic_fallback';
   createdAt: string;
@@ -128,14 +146,19 @@ export interface ForensicReport {
   confidence: number;
   riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   category: string;
+  intent?: string;
+  requested_action?: string;
+  requestedAction?: string;
   analysisEngine: string;
   inputSummary: string;
   inputRaw?: string;
   indicators: ScanIndicator[];
+  evidence?: string[];
   explanation: string;
   recommendations: string[];
   disclaimer: string;
   limitations: string[];
+  requires_review?: boolean;
 }
 
 export interface AdminTelemetry {

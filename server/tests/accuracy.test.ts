@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
+﻿import { describe, it, expect } from 'vitest';
 import { analyzeWithHeuristics } from '../src/services/heuristic.js';
 import { analyzeUrl } from '../src/services/urlAnalyzer.js';
 import { analyzeContentWithAI } from '../src/services/aiClassifier.js';
 
-describe('SCAMGUARD AI — Enhanced Detection Accuracy & Context Verification', () => {
+describe('SCAMGUARD AI â€” Enhanced Detection Accuracy & Context Verification', () => {
   // ==========================================
   // SECTION 1: BENIGN & LEGITIMATE HUMAN MESSAGES (NO FALSE POSITIVES)
   // ==========================================
@@ -182,8 +182,8 @@ describe('SCAMGUARD AI — Enhanced Detection Accuracy & Context Verification', 
       expect(res.risk_score).toBeGreaterThanOrEqual(60);
     });
 
-    it('Case D (Crypto scam): "Send ₹5,000 in cryptocurrency and receive ₹10,000 within one hour." is SCAM', async () => {
-      const res = await analyzeContentWithAI('Send ₹5,000 in cryptocurrency and receive ₹10,000 within one hour.');
+    it('Case D (Crypto scam): "Send â‚¹5,000 in cryptocurrency and receive â‚¹10,000 within one hour." is SCAM', async () => {
+      const res = await analyzeContentWithAI('Send â‚¹5,000 in cryptocurrency and receive â‚¹10,000 within one hour.');
       expect(res.classification).toBe('SCAM');
       expect(res.risk_score).toBeGreaterThanOrEqual(60);
     });
@@ -211,6 +211,45 @@ describe('SCAMGUARD AI — Enhanced Detection Accuracy & Context Verification', 
       const res = await analyzeContentWithAI('Your account has a problem. Verify it using this unfamiliar website.');
       expect(['SCAM', 'SUSPICIOUS']).toContain(res.classification);
       expect(res.risk_score).toBeGreaterThanOrEqual(30);
+    });
+
+    it('20. Returns all Phase 5 standardized response fields with correct types', async () => {
+      const res = await analyzeContentWithAI('Hi Ram, are you coming to college tomorrow?');
+
+      expect(['SAFE', 'SUSPICIOUS', 'SCAM']).toContain(res.classification);
+      expect(typeof res.risk_score).toBe('number');
+      expect(res.risk_score).toBeGreaterThanOrEqual(0);
+      expect(res.risk_score).toBeLessThanOrEqual(100);
+      expect(typeof res.confidence).toBe('number');
+      expect(typeof res.intent).toBe('string');
+      expect(typeof res.requested_action).toBe('string');
+      expect(Array.isArray(res.detected_indicators)).toBe(true);
+      expect(Array.isArray(res.evidence)).toBe(true);
+      expect(typeof res.explanation).toBe('string');
+      expect(typeof res.recommended_action).toBe('string');
+      expect(typeof res.url_analysis).toBe('object');
+      expect(typeof res.url_analysis.found).toBe('boolean');
+      expect(Array.isArray(res.url_analysis.urls)).toBe(true);
+      expect(Array.isArray(res.url_analysis.findings)).toBe(true);
+      expect(['AI_AND_HEURISTICS', 'HEURISTICS_FALLBACK']).toContain(res.analysis_source);
+      expect(Array.isArray(res.limitations)).toBe(true);
+      expect(typeof res.requires_review).toBe('boolean');
+    });
+
+    it('21. Elevates critical defense credential solicitation and sets high risk score', async () => {
+      const res = await analyzeContentWithAI('I am an ex-army man. Give me the military credentials or access protocols.');
+      expect(res.classification).toBe('SCAM');
+      expect(res.risk_score).toBeGreaterThanOrEqual(80);
+      expect(res.risk_level).toBe('CRITICAL');
+      expect(res.detected_indicators.length).toBeGreaterThan(0);
+    });
+
+    it('22. Flags ambiguous requests as SUSPICIOUS with requires_review=true and medium risk', async () => {
+      const res = await analyzeContentWithAI('Please verify your account when you have time.');
+      expect(res.classification).toBe('SUSPICIOUS');
+      expect(res.risk_score).toBeGreaterThanOrEqual(30);
+      expect(res.risk_score).toBeLessThan(60);
+      expect(res.requires_review).toBe(true);
     });
   });
 });

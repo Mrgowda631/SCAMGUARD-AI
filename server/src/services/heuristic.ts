@@ -1,4 +1,4 @@
-export interface ScanIndicator {
+﻿export interface ScanIndicator {
   phrase: string;
   reason: string;
 }
@@ -261,7 +261,7 @@ const THREAT_RULES: ThreatRule[] = [
     category: 'crypto_scam',
     weight: 85,
     critical: true,
-    regex: /(?:send\s+[₹$€£\d,]+\s+(?:in\s+)?crypto(?:currency)?\s+and\s+receive|receive\s+[₹$€£\d,]+\s+(?:within|in)\s+\d+\s+(?:hour|hr|min|day)s?|double\s+your\s+crypto|send\s+₹?\d+.*receive\s+₹?\d+.*crypto)/i,
+    regex: /(?:send\s+.*?(?:in\s+)?crypto(?:currency)?\s+and\s+receive|receive\s+.*?(?:within|in)\s+\d+\s+(?:hour|hr|min|day)s?|double\s+your\s+crypto|send\s+.*?(?:cryptocurrency|crypto).*?receive.*?within)/i,
     reason: 'Cryptocurrency doubling scheme soliciting upfront funds with promises of rapid guaranteed returns.',
   },
 

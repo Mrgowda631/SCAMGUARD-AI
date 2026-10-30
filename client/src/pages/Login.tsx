@@ -80,7 +80,19 @@ export const Login: React.FC = () => {
       showToast('Analyst authenticated. Welcome to SCAMGUARD SOC.', 'success');
       navigate(from, { replace: true });
     } catch (err: any) {
-      setError(err.message || 'Invalid email or password credentials. Please verify your access rights.');
+      const rawMsg = err.message || '';
+      if (
+        rawMsg.includes('Failed to fetch') ||
+        rawMsg.includes('NetworkError') ||
+        rawMsg.includes('Failed to parse response') ||
+        rawMsg.includes('AbortError')
+      ) {
+        setError(
+          'Unable to connect to the SCAMGUARD SOC backend service (port 8000). Please verify that "npm run dev" is running in your terminal.'
+        );
+      } else {
+        setError(rawMsg || 'Invalid email or password credentials. Please verify your access rights.');
+      }
     } finally {
       setSubmitting(false);
     }
