@@ -74,7 +74,7 @@ const THREAT_RULES: ThreatRule[] = [
     category: 'phishing',
     weight: 75,
     critical: true,
-    regex: /(?:send|share|give|provide|forward|read|tell|dm|msg|text)\s+(?:me\s+)?(?:the\s+|your\s+)?(?:6[- ]digit\s+|one[- ]time\s+|sms\s+|verification\s+|security\s+)?(?:otp|code|pin|password)/i,
+    regex: /(?:send|share|give|provide|forward|read|tell|dm|msg|text)\s+(?:me\s+)?(?:the\s+|your\s+)?(?:6[- ]digit\s+|one[- ]time\s+|sms\s+|verification\s+|security\s+|banking\s+|login\s+|account\s+)?(?:otp|code|pin|password|passcode)/i,
     reason: 'Directly asks the recipient to disclose or forward a one-time password (OTP), security code, or PIN.',
   },
   {
@@ -241,7 +241,7 @@ const THREAT_RULES: ThreatRule[] = [
     category: 'credential_theft',
     weight: 85,
     critical: true,
-    regex: /(?:military\s+(?:credentials?|access|protocols?)|classified\s+(?:documents?|files?|credentials?)|defense\s+(?:intranet|credentials?|network)|ex[- ]army\s+man.*give\s+me|give\s+me\s+(?:the\s+)?(?:military|defense|classified)\s+(?:credentials?|protocols?|access))/i,
+    regex: /(?:(?:give\s+me|send\s+me|share|provide|disclose|requesting|hand\s+over).*?(?:military|defense|classified|restricted)\s+(?:credentials?|access|protocols?)|ex[- ]army\s+man.*?(?:give\s+me|credentials)|give\s+me\s+(?:the\s+)?(?:military|defense|classified|restricted)\s+(?:credentials?|protocols?|access))/i,
     reason: 'Solicitation of restricted military credentials, defense access protocols, or classified materials.',
   },
 
@@ -261,7 +261,7 @@ const THREAT_RULES: ThreatRule[] = [
     category: 'crypto_scam',
     weight: 85,
     critical: true,
-    regex: /(?:send\s+.*?(?:in\s+)?crypto(?:currency)?\s+and\s+receive|receive\s+.*?(?:within|in)\s+\d+\s+(?:hour|hr|min|day)s?|double\s+your\s+crypto|send\s+.*?(?:cryptocurrency|crypto).*?receive.*?within)/i,
+    regex: /(?:(?:send|invest|transfer|deposit)\s+[^\s]+\s+.*?(?:receive|get|earn|return)\s+[^\s]+.*?(?:within\s+(?:one|\d+)\s+hours?|instantly|same\s+day)|send\s+.*?(?:in\s+)?crypto(?:currency)?\s+and\s+receive|receive\s+.*?(?:within|in)\s+\d+\s+(?:hour|hr|min|day)s?|double\s+your\s+crypto|send\s+.*?(?:cryptocurrency|crypto).*?receive.*?within)/i,
     reason: 'Cryptocurrency doubling scheme soliciting upfront funds with promises of rapid guaranteed returns.',
   },
 
@@ -343,13 +343,33 @@ const CONTEXT_DAMPENERS: ContextRule[] = [
     weightReduction: 30,
     regex: /(?:send\s+me\s+\$?\d+\s+for\s+(?:the\s+)?(?:pizza|dinner|lunch|uber|groceries|tickets)|split\s+the\s+bill|my\s+share\s+of\s+the|here['\s]+s\s+the\s+money\s+for)/i,
     reason: 'Ordinary peer-to-peer dinner or expense splitting between acquaintances.',
-  },
-  // 8. Academic & Classroom Security Policy Discussion
+  },  // 8. Academic & Classroom Security Policy Discussion
   {
     id: 'cybersecurity_academic_discussion',
     weightReduction: 85,
-    regex: /(?:cybersecurity\s+class\s+discussed\s+why|why\s+military\s+credentials\s+must\s+remain\s+confidential|academic\s+discussion\s+on\s+security|lecture\s+on\s+credential\s+protection|information\s+security\s+curriculum)/i,
+    regex: /(?:cybersecurity|security|computer\s+science)\s+(?:class|course|lecture|training|seminar)\s+discussed\s+.*?(?:otp|password|credential|protection|encryption|principles?)|(?:cybersecurity\s+class\s+discussed\s+why|why\s+military\s+credentials\s+must\s+remain\s+confidential|academic\s+discussion\s+on\s+security|lecture\s+on\s+credential\s+protection|information\s+security\s+curriculum)/i,
     reason: 'Educational or policy discussion about cybersecurity and information protection principles.',
+  },
+  // 9. Security Policy Confidentiality Statement
+  {
+    id: 'security_policy_confidentiality_statement',
+    weightReduction: 85,
+    regex: /(?:military|defense|government|confidential|user)\s+(?:credentials?|protocols?|secrets?|passwords?)\s+must\s+(?:remain|be\s+kept)\s+(?:confidential|secret|secure|protected)/i,
+    reason: 'Security policy guideline or statement reminding personnel that credentials must remain confidential.',
+  },
+  // 10. Routine Banking Service Notice (Informational, No Action Demands)
+  {
+    id: 'routine_banking_service_notice',
+    weightReduction: 50,
+    regex: /(?:your\s+)?(?:monthly\s+)?(?:bank|account|card)\s+statement\s+is\s+available\s+in\s+your\s+official\s+(?:banking\s+)?(?:application|app|portal)/i,
+    reason: 'Routine institutional customer notification regarding account statement availability in official app.',
+  },
+  // 11. Technology & Financial Technology Factual Definition
+  {
+    id: 'technology_factual_definition',
+    weightReduction: 50,
+    regex: /(?:cryptocurrency|bitcoin|blockchain|ethereum|encryption|firewall)\s+is\s+a\s+(?:digital\s+payment|decentralized|cryptographic|distributed\s+ledger|security)\s+(?:technology|system|network|asset|currency|protocol)/i,
+    reason: 'Factual technological definition or educational explanation without deceptive solicitation.',
   },
 ];
 

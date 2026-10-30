@@ -252,4 +252,70 @@ describe('SCAMGUARD AI â€” Enhanced Detection Accuracy & Context Verificati
       expect(res.requires_review).toBe(true);
     });
   });
+  // ==========================================
+  // SECTION 6: FALSE NEGATIVE & FALSE POSITIVE RIGOROUS AUDIT
+  // ==========================================
+  describe('Step 4 & 5 Audit: False Negatives and False Positives Verification', { timeout: 35000 }, () => {
+    // False Negatives (Must all be SCAM)
+    it('FN1: Bank account blocked + OTP demand is SCAM', async () => {
+      const res = await analyzeContentWithAI('Your bank account will be blocked. Send your OTP immediately.');
+      expect(res.classification).toBe('SCAM');
+      expect(res.risk_score).toBeGreaterThanOrEqual(80);
+    });
+
+    it('FN2: Registration fee for job offer is SCAM', async () => {
+      const res = await analyzeContentWithAI('Pay a registration fee to receive your job offer.');
+      expect(res.classification).toBe('SCAM');
+      expect(res.risk_score).toBeGreaterThanOrEqual(80);
+    });
+
+    it('FN3: Send 5000 receive 10000 in one hour is SCAM', async () => {
+      const res = await analyzeContentWithAI('Send ₹5,000 and receive ₹10,000 within one hour.');
+      expect(res.classification).toBe('SCAM');
+      expect(res.risk_score).toBeGreaterThanOrEqual(80);
+    });
+
+    it('FN4: Share banking password to prevent suspension is SCAM', async () => {
+      const res = await analyzeContentWithAI('Share your banking password to prevent account suspension.');
+      expect(res.classification).toBe('SCAM');
+      expect(res.risk_score).toBeGreaterThanOrEqual(80);
+    });
+
+    it('FN5: Solicit confidential military credentials and protocols is SCAM', async () => {
+      const res = await analyzeContentWithAI('Give me confidential military credentials and restricted access protocols.');
+      expect(res.classification).toBe('SCAM');
+      expect(res.risk_score).toBeGreaterThanOrEqual(80);
+    });
+
+    // False Positives (Must all be SAFE)
+    it('FP1: College chat is SAFE', async () => {
+      const res = await analyzeContentWithAI('Hi, are you coming to college tomorrow?');
+      expect(res.classification).toBe('SAFE');
+      expect(res.risk_score).toBeLessThanOrEqual(25);
+    });
+
+    it('FP2: Cybersecurity class discussed OTP protection is SAFE', async () => {
+      const res = await analyzeContentWithAI('Our cybersecurity class discussed OTP protection.');
+      expect(res.classification).toBe('SAFE');
+      expect(res.risk_score).toBeLessThanOrEqual(25);
+    });
+
+    it('FP3: Military credentials must remain confidential is SAFE', async () => {
+      const res = await analyzeContentWithAI('Military credentials must remain confidential.');
+      expect(res.classification).toBe('SAFE');
+      expect(res.risk_score).toBeLessThanOrEqual(25);
+    });
+
+    it('FP4: Monthly bank statement notification is SAFE', async () => {
+      const res = await analyzeContentWithAI('Your monthly bank statement is available in your official banking application.');
+      expect(res.classification).toBe('SAFE');
+      expect(res.risk_score).toBeLessThanOrEqual(25);
+    });
+
+    it('FP5: Cryptocurrency is a digital payment technology is SAFE', async () => {
+      const res = await analyzeContentWithAI('Cryptocurrency is a digital payment technology.');
+      expect(res.classification).toBe('SAFE');
+      expect(res.risk_score).toBeLessThanOrEqual(25);
+    });
+  });
 });

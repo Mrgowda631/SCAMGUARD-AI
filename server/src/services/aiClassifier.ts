@@ -1,9 +1,32 @@
-﻿import OpenAI from 'openai';
+import OpenAI from 'openai';
 import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
 import { config, isGeminiConfigured, isOpenAIConfigured, isAiConfigured } from '../config.js';
 import { AnalysisResult, analyzeWithHeuristics, ScanIndicator, normalizeText } from './heuristic.js';
 import { analyzeUrlStructure } from './urlAnalyzer.js';
+
+const PROMPT_VERSION = 'scamguard-ai-v2.2-audit';
+
+export interface DiagnosticLogPayload {
+  requestId: string;
+  timestamp: string;
+  modelIdentifier: string;
+  promptVersion: string;
+  apiProvider: 'openai' | 'gemini' | 'heuristic_fallback';
+  apiResponseStatus: 'success' | 'rate_limited' | 'unconfigured' | 'timeout' | 'error';
+  aiClassification?: 'SAFE' | 'SUSPICIOUS' | 'SCAM';
+  heuristicClassification: 'SAFE' | 'SUSPICIOUS' | 'SCAM';
+  finalClassification: 'SAFE' | 'SUSPICIOUS' | 'SCAM';
+  inputLength: number;
+  processingError?: string;
+}
+
+export function logDiagnosticEvent(payload: DiagnosticLogPayload) {
+  const errPart = payload.processingError ? ` | Error: ${payload.processingError}` : '';
+  console.log(
+    `[SCAMGUARD DIAGNOSTIC] [Req: ${payload.requestId}] Model: ${payload.modelIdentifier} | Provider: ${payload.apiProvider} | Status: ${payload.apiResponseStatus} | AI: ${payload.aiClassification || 'N/A'} | Heuristics: ${payload.heuristicClassification} | Final: ${payload.finalClassification}${errPart}`
+  );
+}
 
 export interface UrlAnalysisDetail {
   found: boolean;
@@ -293,45 +316,50 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
   const evidence: string[] = [];
   const matchedPhrases: string[] = [];
 
-  // Check educational or academic security discussions
+  // Check educational or academic security discussions & technological definitions (Step 5 FP protection)
   const isEducationalOrAcademic =
-    /(?:cybersecurity|security)\s+(?:class|course|lecture|training|seminar|assignment)\s+discussed/i.test(rawLower) ||
+    /(?:cybersecurity|security|computer\s+science)\s+(?:class|course|lecture|training|seminar|assignment)\s+discussed/i.test(rawLower) ||
     /discussed\s+why\s+(?:military\s+credentials|passwords?|otps?)\s+must\s+remain\s+confidential/i.test(rawLower) ||
     /lecture\s+notes\s+on\s+(?:blockchain|network|cyber)\s+security/i.test(rawLower) ||
-    /policy\s+states\s+(?:never\s+to\s+share|not\s+to\s+disclose)/i.test(rawLower);
+    /policy\s+states\s+(?:never\s+to\s+share|not\s+to\s+disclose)/i.test(rawLower) ||
+    /(?:military|defense|government|confidential|user)\s+(?:credentials?|protocols?|secrets?|passwords?)\s+must\s+(?:remain|be\s+kept)\s+(?:confidential|secret|secure|protected)/i.test(rawLower) ||
+    /(?:cryptocurrency|bitcoin|blockchain|ethereum|encryption|firewall)\s+is\s+a\s+(?:digital\s+payment|decentralized|cryptographic|distributed\s+ledger|security)\s+(?:technology|system|network|asset|currency|protocol)/i.test(rawLower);
 
-  // Check legitimate bank alert warning user NEVER to share OTP
-  const isLegitBankAlertWarning =
-    /(?:never|do\s+not)\s+share\s+your\s+(?:otp|pin|password)/i.test(rawLower) &&
-    !/(?:send|share|reply\s+with|forward)\s+(?:your\s+)?(?:otp|code|pin)/i.test(rawLower);
+  // Check legitimate bank alert warning user NEVER to share OTP OR routine statement notifications (Step 5 FP protection)
+  const isLegitBankNotification =
+    (/(?:never|do\s+not)\s+share\s+your\s+(?:otp|pin|password)/i.test(rawLower) &&
+    !/(?:send|share|reply\s+with|forward)\s+(?:your\s+)?(?:otp|code|pin)/i.test(rawLower)) ||
+    /(?:your\s+)?(?:monthly\s+)?(?:bank|account|card)\s+statement\s+is\s+available\s+in\s+your\s+official\s+(?:banking\s+)?(?:application|app|portal)/i.test(rawLower);
 
-  // Check harmless peer chats
+  // Check harmless peer chats (Step 5 FP protection)
   const isHarmlessPeerChat =
-    /(?:hi|hey|hello)\s+[a-z]+,?\s+are\s+you\s+coming\s+to\s+(?:college|school|class|work|office|lunch)\s+tomorrow/i.test(rawLower) ||
+    /(?:hi|hey|hello)\s*,?\s*are\s+you\s+coming\s+to\s+(?:college|school|class|work|office|lunch|dinner)\s+tomorrow/i.test(rawLower) ||
     /(?:hey|hi),?\s+are\s+we\s+still\s+meeting\s+for\s+lunch/i.test(rawLower);
 
-  // Check critical credential & military/defense access solicitation
-  const militarySolicitationRegex = /(?:ex-army|army\s+man|military|defense|pentagon).*?(?:give\s+me|send\s+me|share|provide).*?(?:military\s+credentials|access\s+protocols|classified|clearance)/i;
-  const otpTheftRegex = /(?:send|share|reply\s+with|forward|enter)\s+(?:your\s+)?(?:otp|pin|verification\s+code|6-digit\s+code|password|seed\s+phrase)/i;
-  const hasMilitarySolicitation = militarySolicitationRegex.test(rawLower);
-  const hasOtpTheft = otpTheftRegex.test(rawLower) && !isLegitBankAlertWarning;
+  // Check critical credential & military/defense access solicitation (Step 4 FN protection)
+  const militarySolicitationRegex = /(?:(?:give\s+me|send\s+me|share|provide|disclose|requesting|hand\s+over).*?(?:military|defense|classified|restricted)\s+(?:credentials?|access|protocols?)|ex[- ]army\s+man.*?(?:give\s+me|credentials)|give\s+me\s+(?:the\s+)?(?:military|defense|classified|restricted)\s+(?:credentials?|protocols?|access))/i;
+  const otpTheftRegex = /(?:send|share|reply\s+with|forward|enter|provide|disclose|give)\s+.*?(?:6[- ]digit|one[- ]time|sms\s+)?(?:otp|pin|verification\s+code|6-digit\s+code|banking\s+password|login\s+credentials|seed\s+phrase|password|passcode)/i;
+  const passwordSuspensionRegex = /(?:share|send|provide|disclose|give|enter)\s+.*?(?:password|passcode|credentials?|pin|otp).*?(?:prevent|avoid|stop|account\s+suspension|suspension|blocked)/i;
 
-  const isCriticalCredentialTheft = (!isEducationalOrAcademic && (hasMilitarySolicitation || hasOtpTheft));
+  const hasMilitarySolicitation = militarySolicitationRegex.test(rawLower);
+  const hasOtpOrPasswordTheft = (otpTheftRegex.test(rawLower) || passwordSuspensionRegex.test(rawLower)) && !isLegitBankNotification;
+
+  const isCriticalCredentialTheft = (!isEducationalOrAcademic && (hasMilitarySolicitation || hasOtpOrPasswordTheft));
 
   if (hasMilitarySolicitation && !isEducationalOrAcademic) {
     indicators.push('Stage 2 Security Rule: Unauthorized solicitation of confidential military credentials or defense protocols.');
-    evidence.push('ex-army ... military credentials or access protocols');
+    evidence.push('solicitation of restricted military/defense credentials');
     matchedPhrases.push('military credentials or access protocols');
   }
 
-  if (hasOtpTheft && !isEducationalOrAcademic) {
-    indicators.push('Stage 2 Security Rule: Direct demand for confidential authentication code / OTP.');
-    evidence.push('Send OTP / verification code immediately');
-    matchedPhrases.push('Send your OTP immediately');
+  if (hasOtpOrPasswordTheft && !isEducationalOrAcademic) {
+    indicators.push('Stage 2 Security Rule: Direct demand for confidential authentication code / OTP / password under threat or urgency.');
+    evidence.push('Demand for confidential credentials/password to prevent suspension or verify account');
+    matchedPhrases.push('Send your OTP / password immediately');
   }
 
-  // Check advance fee job or prize scams
-  const advanceFeeRegex = /(?:selected|congratulations).*?(?:pay|deposit)\s+(?:a\s+)?(?:registration\s+fee|processing\s+fee|clearance\s+fee|upfront\s+deposit)/i;
+  // Check advance fee job or prize scams (Step 4 FN protection)
+  const advanceFeeRegex = /(?:selected|congratulations).*?(?:pay|deposit)\s+(?:a\s+)?(?:registration\s+fee|processing\s+fee|clearance\s+fee|upfront\s+deposit)|pay\s+(?:a\s+)?registration\s+fee\s+to\s+receive\s+(?:your\s+)?job\s+offer/i;
   const isAdvanceFeeFraud = advanceFeeRegex.test(rawLower);
   if (isAdvanceFeeFraud) {
     indicators.push('Stage 2 Security Rule: Upfront registration fee / advance fee required to receive employment offer or prize.');
@@ -339,14 +367,13 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
     matchedPhrases.push('Pay a registration fee');
   }
 
-  // Check crypto doubling schemes
-  const cryptoDoublingRegex =
-    /(?:send|invest).*?(?:cryptocurrency|crypto|eth|btc|bitcoin|usdt).*?(?:receive|get|earn|return).*?(?:within|hour|instant|double|2x)|(?:send|invest).*?(?:receive|get).*?(?:within\s+(?:one\s+hour|\d+\s+hour)|instantly).*?(?:crypto|cryptocurrency)/i;
+  // Check financial doubling / crypto multiplier schemes (Step 4 FN protection)
+  const cryptoDoublingRegex = /(?:(?:send|invest|transfer|deposit)\s+[^\s]+\s+.*?(?:receive|get|earn|return)\s+[^\s]+.*?(?:within\s+(?:one|\d+)\s+hours?|instantly|same\s+day)|(?:send|invest).*?(?:cryptocurrency|crypto|eth|btc|bitcoin|usdt).*?(?:receive|get|earn|return).*?(?:within|hour|instant|double|2x))/i;
   const isCryptoDoubling = cryptoDoublingRegex.test(rawLower);
   if (isCryptoDoubling) {
-    indicators.push('Stage 2 Security Rule: Fraudulent cryptocurrency multiplier / doubling scheme with guaranteed quick returns.');
-    evidence.push('Send cryptocurrency and receive multiplied return within one hour');
-    matchedPhrases.push('receive ₹110,000 within one hour');
+    indicators.push('Stage 2 Security Rule: Fraudulent money/cryptocurrency multiplier / doubling scheme with guaranteed quick returns.');
+    evidence.push('Send money/cryptocurrency and receive multiplied return within hours');
+    matchedPhrases.push('receive multiplied return within one hour');
   }
 
   // Check ambiguous verification request without context
@@ -365,7 +392,7 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
   if (isAmbiguousVerification) suggestedScoreFloor = Math.max(suggestedScoreFloor, 40);
 
   return {
-    isEducationalOrAcademic: isEducationalOrAcademic || isLegitBankAlertWarning,
+    isEducationalOrAcademic: isEducationalOrAcademic || isLegitBankNotification,
     isHarmlessPeerChat,
     isCriticalCredentialTheft,
     isAdvanceFeeFraud,
@@ -391,6 +418,7 @@ export async function analyzeContentWithAI(
   platform?: string
 ): Promise<UnifiedAnalysisResult> {
   const trimmed = (content || '').trim();
+  const requestId = 'req_' + Math.random().toString(36).slice(2, 10);
 
   // 1. Inspect URL structures deterministically
   const extractedUrls = extractUrls(trimmed);
@@ -523,6 +551,19 @@ export async function analyzeContentWithAI(
       urlAnalysisDetail.findings = Array.from(new Set([...urlAnalysisDetail.findings, ...aiOutput.url_analysis.findings]));
     }
 
+    logDiagnosticEvent({
+      requestId,
+      timestamp: new Date().toISOString(),
+      modelIdentifier: activeEngine === 'openai' ? (config.openaiModel || 'gpt-4o-mini') : (config.geminiModel || 'gemini-3.5-flash'),
+      promptVersion: PROMPT_VERSION,
+      apiProvider: activeEngine,
+      apiResponseStatus: 'success',
+      aiClassification: aiOutput.classification,
+      heuristicClassification: stage2.suggestedScoreFloor >= 60 ? 'SCAM' : stage2.isEducationalOrAcademic || stage2.isHarmlessPeerChat ? 'SAFE' : 'SUSPICIOUS',
+      finalClassification,
+      inputLength: trimmed.length,
+    });
+
     return {
       classification: finalClassification,
       risk_score: finalScore,
@@ -615,6 +656,19 @@ export async function analyzeContentWithAI(
   const legacyIndicators: ScanIndicator[] = fallbackIndicators.map(str => {
     const parts = str.split(': ');
     return { phrase: parts[0] || 'Indicator', reason: parts[1] || str };
+  });
+
+  logDiagnosticEvent({
+    requestId,
+    timestamp: new Date().toISOString(),
+    modelIdentifier: isOpenAIConfigured() ? config.openaiModel : isGeminiConfigured() ? config.geminiModel : 'none',
+    promptVersion: PROMPT_VERSION,
+    apiProvider: 'heuristic_fallback',
+    apiResponseStatus: (!isOpenAIConfigured() && !isGeminiConfigured()) ? 'unconfigured' : 'rate_limited',
+    heuristicClassification: fallbackClass,
+    finalClassification: fallbackClass,
+    inputLength: trimmed.length,
+    processingError: !isOpenAIConfigured() ? 'OPENAI_API_KEY is not configured in backend .env' : 'Primary AI APIs exceeded quota or were unreachable',
   });
 
   return {
