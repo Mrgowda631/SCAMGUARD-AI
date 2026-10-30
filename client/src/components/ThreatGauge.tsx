@@ -14,30 +14,30 @@ export const ThreatGauge: React.FC<ThreatGaugeProps> = ({
 }) => {
   const clamped = Math.min(100, Math.max(0, Math.round(score)));
 
-  // Risk bands per requirements:
-  // 0–29: Low risk
-  // 30–59: Moderate risk
-  // 60–79: High risk
-  // 80–100: Critical risk
+  // Risk bands per Section 4 operational thresholds:
+  // 0–20: Low risk (SAFE)
+  // 21–49: Medium risk (SUSPICIOUS)
+  // 50–74: High risk (SCAM)
+  // 75–100: Critical risk (SCAM)
   let riskTier = 'Low Risk';
   let strokeColor = '#10B981'; // emerald
   let textColor = 'text-emerald-400';
   let glowColor = 'rgba(16, 185, 129, 0.3)';
   let Icon = ShieldCheck;
 
-  if (clamped >= 80) {
+  if (clamped >= 75) {
     riskTier = 'Critical Threat';
     strokeColor = '#EF4444'; // red
     textColor = 'text-red-400';
     glowColor = 'rgba(239, 68, 68, 0.4)';
     Icon = ShieldAlert;
-  } else if (clamped >= 60) {
+  } else if (clamped >= 50) {
     riskTier = 'High Risk';
     strokeColor = '#F97316'; // orange
     textColor = 'text-orange-400';
     glowColor = 'rgba(249, 115, 22, 0.35)';
     Icon = AlertTriangle;
-  } else if (clamped >= 30) {
+  } else if (clamped >= 21) {
     riskTier = 'Moderate Risk';
     strokeColor = '#F59E0B'; // amber
     textColor = 'text-amber-400';

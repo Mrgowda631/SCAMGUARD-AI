@@ -224,7 +224,7 @@ const CLIENT_THREAT_RULES: ThreatRule[] = [
     category: 'crypto_scam',
     weight: 85,
     critical: true,
-    regex: /(?:send\s+[₹$€£\d,]+\s+(?:in\s+)?crypto(?:currency)?\s+and\s+receive|receive\s+[₹$€£\d,]+\s+(?:within|in)\s+\d+\s+(?:hour|hr|min|day)s?|double\s+your\s+crypto|send\s+₹?\d+.*receive\s+₹?\d+.*crypto)/i,
+    regex: /(?:(?:send|invest|transfer|deposit)\s+[^\s]+\s+.*?(?:receive|get|earn|return)\s+[^\s]+.*?(?:(?:within|in)\s+(?:one|\d+)\s+hours?|instantly|same\s+day)|(?:send|invest|transfer|deposit)\s+.*?(?:receive|get|earn|return)\s+.*?(?:in|within)\s+(?:one|\d+)\s+hours?|send\s+[₹$€£\d,]+\s+(?:in\s+)?crypto(?:currency)?\s+and\s+receive|receive\s+[₹$€£\d,]+\s+(?:within|in)\s+\d+\s+(?:hour|hr|min|day)s?|double\s+your\s+crypto|send\s+₹?\d+.*receive\s+₹?\d+.*crypto)/i,
     reason: 'Cryptocurrency doubling scheme soliciting upfront funds with promises of rapid guaranteed returns.',
   },
 
@@ -381,18 +381,28 @@ export function runClientHeuristic(content: string, platform?: string): Analysis
     }
   }
 
-  let isUnverified = false;
-  if (matchedThreats.length === 0 && matchedDampeners.length === 0) {
-    isUnverified = true;
-    netScore = 35;
+  if (matchedThreats.length === 0) {
+    return {
+      prediction: 'genuine',
+      risk_score: 0,
+      confidence: 0.85,
+      category: 'legitimate',
+      indicators: [],
+      explanation: 'No suspicious intent or harmful request detected.',
+      recommendations: [
+        'No immediate defensive action required.',
+      ],
+      summary: 'Content verified as safe with no suspicious threat signatures detected.',
+      engine: 'heuristic_fallback',
+    };
   }
 
   const risk_score = Math.min(100, Math.max(0, netScore));
 
   let prediction: 'scam' | 'suspicious' | 'genuine';
-  if (risk_score >= 60) {
+  if (risk_score >= 50) {
     prediction = 'scam';
-  } else if (risk_score >= 30) {
+  } else if (risk_score >= 21) {
     prediction = 'suspicious';
   } else {
     prediction = 'genuine';
@@ -408,7 +418,7 @@ export function runClientHeuristic(content: string, platform?: string): Analysis
       }
     }
     if (dominantCategory === 'legitimate') {
-      dominantCategory = isUnverified ? 'unverified_content' : 'suspicious_activity';
+      dominantCategory = 'suspicious_activity';
     }
   }
 
@@ -442,9 +452,9 @@ export function runClientHeuristic(content: string, platform?: string): Analysis
   if (prediction === 'scam') {
     confidence = indicators.length >= 2 || hasCriticalThreat ? 0.95 : 0.80;
   } else if (prediction === 'suspicious') {
-    confidence = isUnverified ? 0.50 : 0.75;
+    confidence = 0.75;
   } else {
-    confidence = matchedDampeners.length > 0 ? 0.90 : 0.70;
+    confidence = matchedDampeners.length > 0 ? 0.90 : 0.85;
   }
 
   let explanation = '';
@@ -452,11 +462,7 @@ export function runClientHeuristic(content: string, platform?: string): Analysis
     const keyPhrases = indicators.slice(0, 3).map(i => `"${i.phrase}"`).join(', ');
     explanation = `Offline client forensic engine identified high-severity threat markers (${keyPhrases || dominantCategory}). Communication shows characteristics of ${dominantCategory.replace('_', ' ')} fraud.`;
   } else if (prediction === 'suspicious') {
-    if (isUnverified) {
-      explanation = `Message did not match standard conversational or educational patterns, nor known threat signatures. Lacking AI verification, it cannot be certified safe.`;
-    } else {
-      explanation = `Offline client analysis detected moderate risk indicators. Contains elements requiring independent verification.`;
-    }
+    explanation = `Offline client analysis detected moderate risk indicators. Contains elements requiring independent verification.`;
   } else {
     if (matchedDampeners.length > 0) {
       explanation = `Verified as legitimate human communication (${matchedDampeners[0].rule.reason.toLowerCase()}). No scam patterns detected.`;

@@ -1,7 +1,8 @@
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load environment variables from .env file
+// Load environment variables from .env file across potential working directories
+dotenv.config({ path: path.resolve(process.cwd(), 'server/.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
 

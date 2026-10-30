@@ -37,7 +37,7 @@ export const AnalysisResultCard: React.FC<AnalysisResultCardProps> = ({
   const riskScore = analysis.risk_score;
   const riskLevel =
     analysis.risk_level ||
-    (riskScore >= 80 ? 'CRITICAL' : riskScore >= 60 ? 'HIGH' : riskScore >= 30 ? 'MEDIUM' : 'LOW');
+    (riskScore >= 75 ? 'CRITICAL' : riskScore >= 50 ? 'HIGH' : riskScore >= 21 ? 'MEDIUM' : 'LOW');
 
   const confidencePercent =
     typeof analysis.confidence === 'number'

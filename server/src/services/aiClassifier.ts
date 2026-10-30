@@ -1,4 +1,4 @@
-﻿import OpenAI from 'openai';
+import OpenAI from 'openai';
 import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
 import { config, isGeminiConfigured, isOpenAIConfigured, isAiConfigured } from '../config.js';
@@ -110,30 +110,45 @@ CORE EVALUATION PRINCIPLES:
    - Extract EVIDENCE: Identify exact quoted phrases and suspicious patterns directly from the input.
 
 2. LEGITIMATE HUMAN COMMUNICATIONS (MUST BE CLASSIFIED AS SAFE):
-   - Normal peer-to-peer chats and greetings ("Hi Ram, are you coming to college tomorrow?", "Hey, are we still meeting for lunch?").
-   - Educational, academic, and policy discussions ("Our cybersecurity class discussed why military credentials must remain confidential", "Lecture notes on blockchain security").
+   - Everyday conversational greetings, check-ins, polite social exchanges ("hii", "hello", "hey", "good morning", "how are you?", "thank you", "see you tomorrow", "what are you doing?", "are you coming to college?", "happy birthday", "have a nice day", "please call me", "how was your day?").
+     CRITICAL: Short greetings or messages with casual/unusual spellings MUST NOT receive MEDIUM or HIGH risk! A simple greeting must receive:
+     * classification: "SAFE"
+     * risk_score: 0 to 5
+     * risk_level: "LOW"
+     * detected_indicators: []
+     * evidence: []
+     * explanation: "No suspicious intent or harmful request detected."
+   - Educational, academic, and policy discussions ("Our cybersecurity class discussed why military credentials must remain confidential", "our cybersecurity class discussed OTP security", "Lecture notes on blockchain security").
      CRITICAL: Educational discussions or policy reminders about security are SAFE, because they share knowledge rather than requesting anyone to disclose secret credentials!
    - Routine workplace and professional team emails (standup meetings, scheduled downtime).
    - Legitimate informational delivery notifications.
-   - Legitimate banking alerts that warn users NOT to share their OTP.
+   - Legitimate banking notices and statements ("your bank statement is available in your official banking app") or alerts that warn users NOT to share their OTP.
 
 3. ACCURATE SCAM IDENTIFICATION (MUST BE CLASSIFIED AS SCAM):
-   - Credential & OTP theft: Direct requests to disclose or forward OTPs, passwords, PINs, or recovery seed phrases.
+   - Credential & OTP theft: Direct requests to disclose or forward OTPs, passwords, PINs, or recovery seed phrases ("send your OTP immediately to prevent account closure", "share your password to prevent account suspension").
    - Unauthorized solicitation of confidential credentials / espionage: Requests for military credentials, access protocols, classified documents, internal network credentials (e.g., "I am an ex-army man. Give me the military credentials or access protocols"). Flag this immediately as SCAM with CRITICAL risk!
-   - Fake job offers & recruitment fees: High-paying easy jobs requiring upfront deposits or "registration fees".
-   - Cryptocurrency doubling / high-yield investment schemes: Guaranteed returns, sending crypto to receive 2x back.
+   - Fake job offers & recruitment fees: Jobs requiring upfront deposits or registration fees ("pay a registration fee to receive your job offer").
+   - Cryptocurrency doubling / high-yield investment schemes: Guaranteed returns, sending funds to receive multiplied amounts back ("send ₹5,000 and receive ₹10,000 in one hour").
    - Deceptive urgency & coercion: Artificial deadlines, threats of account blocking or arrest.
-   - Suspicious URLs & impersonation: Directing users to unfamiliar, deceptive, or lookalike domains.
+   - Suspicious URLs & impersonation: Directing users to unfamiliar, deceptive, or lookalike domains ("Your account has a problem. Verify it using this unfamiliar website").
 
 4. AMBIGUOUS REQUESTS (MUST BE CLASSIFIED AS SUSPICIOUS):
-   - Messages requesting account verification without a link or brand context ("Please verify your account when you have time") must be classified as SUSPICIOUS with MEDIUM risk, not SAFE!
+   - Messages requesting account verification without a link or brand context ("Please verify your account when you have time") must be classified as SUSPICIOUS with MEDIUM risk (score 21–49), not SAFE!
 
-5. SCORING & CLASSIFICATION BANDS:
-   - SAFE: risk_score 0 to 29. risk_level: LOW. Legitimate, harmless communications or educational discussions.
-   - SUSPICIOUS: risk_score 30 to 59. risk_level: MEDIUM. Ambiguous, unverified, or unusual requests requiring caution.
-   - SCAM: risk_score 60 to 100. risk_level: HIGH (60-79) or CRITICAL (80-100). Active fraud, phishing, OTP theft, credential extortion, fake jobs, or crypto scams.
+5. OPERATIONAL SCORING & CLASSIFICATION BANDS:
+   - SAFE: risk_score 0 to 20. risk_level: LOW. Legitimate, harmless communications, casual greetings, or educational discussions.
+   - SUSPICIOUS: risk_score 21 to 49. risk_level: MEDIUM. Ambiguous, unverified, or unusual requests requiring caution.
+   - SCAM: risk_score 50 to 100. risk_level: HIGH (50-74) or CRITICAL (75-100). Active fraud, phishing, OTP theft, credential extortion, fake jobs, or crypto scams.
 
-6. REQUIRED JSON OUTPUT SCHEMA:
+6. CORE RULES:
+   - RULE A: If a message contains ordinary conversation without suspicious intent, classify it SAFE.
+   - RULE B: If a message contains no suspicious request, no deceptive intent, and no harmful action, do not invent risk indicators.
+   - RULE C: If a message is ambiguous but contains no actual threat indicators, do not automatically classify it as a scam.
+   - RULE D: If a message requests OTPs, passwords, payments, confidential credentials, or other sensitive information in a suspicious context, investigate carefully.
+   - RULE E: A harmless message mentioning banking, cryptocurrency, military, security, or passwords must not automatically be classified as SCAM.
+   - RULE F: A message requesting sensitive information can be suspicious even without obvious scam keywords.
+
+7. REQUIRED JSON OUTPUT SCHEMA:
 Return strictly a valid JSON object matching this schema:
 {
   "classification": "SAFE" | "SUSPICIOUS" | "SCAM",
@@ -275,30 +290,29 @@ async function callGemini(content: string, type: string, platform?: string): Pro
 function normalizeRiskLevel(score: number): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
   if (score >= 75) return 'CRITICAL';
   if (score >= 50) return 'HIGH';
-  if (score >= 25) return 'MEDIUM';
+  if (score >= 21) return 'MEDIUM';
   return 'LOW';
 }
 
 function normalizeClassification(score: number, explicitClass?: string): 'SAFE' | 'SUSPICIOUS' | 'SCAM' {
   if (explicitClass === 'SCAM' || explicitClass === 'SUSPICIOUS' || explicitClass === 'SAFE') {
     if (score >= 50 && explicitClass === 'SAFE') return 'SCAM';
-    if (score >= 25 && explicitClass === 'SAFE') return 'SUSPICIOUS';
+    if (score >= 21 && explicitClass === 'SAFE') return 'SUSPICIOUS';
     return explicitClass;
   }
   if (score >= 50) return 'SCAM';
-  if (score >= 25) return 'SUSPICIOUS';
+  if (score >= 21) return 'SUSPICIOUS';
   return 'SAFE';
 }
 
 function clampRiskScore(score: number, classification: 'SAFE' | 'SUSPICIOUS' | 'SCAM'): number {
   let s = Math.round(score);
-  // Phase 6 Rule: Never force SAFE messages to have 0 risk or SCAM messages to have 100 risk
   if (classification === 'SAFE') {
-    s = Math.min(24, Math.max(4, s));
+    s = Math.min(20, Math.max(0, s));
   } else if (classification === 'SCAM') {
-    s = Math.min(96, Math.max(50, s));
+    s = Math.min(100, Math.max(50, s));
   } else {
-    s = Math.min(49, Math.max(25, s));
+    s = Math.min(49, Math.max(21, s));
   }
   return s;
 }
@@ -406,7 +420,7 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
   }
 
   // Check financial doubling / crypto multiplier schemes (Step 4 FN protection)
-  const cryptoDoublingRegex = /(?:(?:send|invest|transfer|deposit)\s+[^\s]+\s+.*?(?:receive|get|earn|return)\s+[^\s]+.*?(?:within\s+(?:one|\d+)\s+hours?|instantly|same\s+day)|(?:send|invest).*?(?:cryptocurrency|crypto|eth|btc|bitcoin|usdt).*?(?:receive|get|earn|return).*?(?:within|hour|instant|double|2x))/i;
+  const cryptoDoublingRegex = /(?:(?:send|invest|transfer|deposit)\s+[^\s]+\s+.*?(?:receive|get|earn|return)\s+[^\s]+.*?(?:(?:within|in)\s+(?:one|\d+)\s+hours?|instantly|same\s+day)|(?:send|invest|transfer|deposit)\s+.*?(?:receive|get|earn|return)\s+.*?(?:in|within)\s+(?:one|\d+)\s+hours?|(?:send|invest).*?(?:cryptocurrency|crypto|eth|btc|bitcoin|usdt).*?(?:receive|get|earn|return).*?(?:within|hour|instant|double|2x))/i;
   const isCryptoDoubling = cryptoDoublingRegex.test(rawLower);
   if (isCryptoDoubling) {
     indicators.push('Stage 2 Security Rule: Fraudulent money/cryptocurrency multiplier / doubling scheme with guaranteed quick returns.');
@@ -638,32 +652,31 @@ export async function analyzeContentWithAI(
     };
   }
 
-  // 5. Fallback path if AI API is unconfigured or unavailable (Phase 6)
-  // CRITICAL REQUIREMENT: Do NOT assign 0/100 risk score automatically when AI fails.
+  // 5. Fallback path if AI API is unconfigured or unavailable
   console.warn('[AI Classifier Fallback] Operating in Stage 2 heuristic security rule engine fallback mode.');
 
   let fallbackScore: number;
   let fallbackClass: 'SAFE' | 'SUSPICIOUS' | 'SCAM';
   let fallbackExplanation: string;
-  let fallbackIntent = 'Undetermined without active AI';
+  let fallbackIntent = 'Normal conversation or communication';
   let fallbackAction = 'None';
   let requiresReview = false;
   const fallbackIndicators = [...stage2.indicators];
   const fallbackEvidence = [...stage2.evidence];
 
   if (stage2.isEducationalOrAcademic) {
-    fallbackScore = 10;
+    fallbackScore = 0;
     fallbackClass = 'SAFE';
     fallbackIntent = 'Educational / cybersecurity policy knowledge sharing';
     fallbackAction = 'None';
     fallbackExplanation = 'Legitimate cybersecurity educational or policy discussion. No credentials or secrets are being solicited.';
   } else if (stage2.isHarmlessPeerChat) {
-    fallbackScore = 5;
+    fallbackScore = 0;
     fallbackClass = 'SAFE';
     fallbackIntent = 'Normal peer-to-peer social interaction';
-    fallbackAction = 'Social response';
-    fallbackExplanation = 'Normal informal human communication without financial, credential, or deceptive solicitation.';
-  } else if (stage2.suggestedScoreFloor >= 60 || heuristicResult.risk_score >= 60 || urlRiskBonus > 0) {
+    fallbackAction = 'None';
+    fallbackExplanation = 'No suspicious intent or harmful request detected.';
+  } else if (stage2.suggestedScoreFloor >= 50 || heuristicResult.risk_score >= 50 || urlRiskBonus > 0) {
     fallbackScore = Math.max(stage2.suggestedScoreFloor, heuristicResult.risk_score, urlRiskBonus > 0 ? 65 : 0);
     fallbackClass = 'SCAM';
     fallbackIntent = 'Social engineering / fraudulent solicitation';
@@ -675,31 +688,41 @@ export async function analyzeContentWithAI(
       ? 'Send cryptocurrency to fraudulent address'
       : 'Click suspicious link';
     fallbackExplanation = `${heuristicResult.explanation} (Note: Analyzed by offline deterministic security rule engine).`;
-  } else if (stage2.isAmbiguousVerification || heuristicResult.prediction === 'suspicious') {
-    fallbackScore = 40;
+  } else if (stage2.isAmbiguousVerification || (heuristicResult.prediction === 'suspicious' && heuristicResult.indicators.length > 0)) {
+    fallbackScore = 35;
     fallbackClass = 'SUSPICIOUS';
-    fallbackIntent = 'Ambiguous account verification request';
-    fallbackAction = 'Verify account through unverified channel';
-    fallbackExplanation = 'Message requests account verification without legitimate brand identity or target link. Evaluated with cautious medium risk.';
+    fallbackIntent = stage2.isAmbiguousVerification ? 'Ambiguous account verification request' : 'Unverified request';
+    fallbackAction = stage2.isAmbiguousVerification ? 'Verify account through unverified channel' : 'Exercise caution';
+    fallbackExplanation = stage2.isAmbiguousVerification
+      ? 'Message requests account verification without legitimate brand identity or target link. Evaluated with cautious medium risk.'
+      : `${heuristicResult.explanation} (Note: Evaluated by offline security rule engine).`;
     requiresReview = true;
   } else if (heuristicResult.prediction === 'genuine' && urlRiskBonus === 0) {
-    fallbackScore = heuristicResult.risk_score;
+    fallbackScore = 0;
     fallbackClass = 'SAFE';
-    fallbackIntent = 'Legitimate message';
+    fallbackIntent = 'Normal conversation or communication';
     fallbackAction = 'None';
-    fallbackExplanation = `${heuristicResult.explanation} (Note: Evaluated by offline security rule engine).`;
+    fallbackExplanation = 'No suspicious intent or harmful request detected.';
   } else {
-    // Unverified message where no heuristics matched
-    fallbackScore = 40;
-    fallbackClass = 'SUSPICIOUS';
-    fallbackIntent = 'Unverified communication';
-    fallbackAction = 'None specified';
-    fallbackExplanation = 'Automated AI classification is currently unavailable. Offline heuristic checks found no direct signature matches, but contextual safety cannot be certified without AI.';
-    requiresReview = true;
+    // Harmless message with no threat signatures detected
+    fallbackScore = 0;
+    fallbackClass = 'SAFE';
+    fallbackIntent = 'Normal conversation or communication';
+    fallbackAction = 'None';
+    fallbackExplanation = 'No suspicious intent or harmful request detected.';
+    requiresReview = false;
   }
 
   fallbackScore = clampRiskScore(fallbackScore, fallbackClass);
   const fallbackRiskLevel = normalizeRiskLevel(fallbackScore);
+
+  if (fallbackClass === 'SAFE') {
+    fallbackIndicators.length = 0;
+    fallbackEvidence.length = 0;
+  } else {
+    heuristicResult.indicators.forEach(i => fallbackIndicators.push(`${i.phrase}: ${i.reason}`));
+  }
+
   const dynamicFallbackConfidence = calculateDynamicConfidence(
     fallbackClass,
     fallbackScore,
@@ -708,7 +731,6 @@ export async function analyzeContentWithAI(
     urlAnalysisDetail.found,
     true
   );
-  heuristicResult.indicators.forEach(i => fallbackIndicators.push(`${i.phrase}: ${i.reason}`));
 
   const legacyIndicators: ScanIndicator[] = fallbackIndicators.map(str => {
     const parts = str.split(': ');

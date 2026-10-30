@@ -1,4 +1,4 @@
-﻿export interface ScanIndicator {
+export interface ScanIndicator {
   phrase: string;
   reason: string;
 }
@@ -261,7 +261,7 @@ const THREAT_RULES: ThreatRule[] = [
     category: 'crypto_scam',
     weight: 85,
     critical: true,
-    regex: /(?:(?:send|invest|transfer|deposit)\s+[^\s]+\s+.*?(?:receive|get|earn|return)\s+[^\s]+.*?(?:within\s+(?:one|\d+)\s+hours?|instantly|same\s+day)|send\s+.*?(?:in\s+)?crypto(?:currency)?\s+and\s+receive|receive\s+.*?(?:within|in)\s+\d+\s+(?:hour|hr|min|day)s?|double\s+your\s+crypto|send\s+.*?(?:cryptocurrency|crypto).*?receive.*?within)/i,
+    regex: /(?:(?:send|invest|transfer|deposit)\s+[^\s]+\s+.*?(?:receive|get|earn|return)\s+[^\s]+.*?(?:(?:within|in)\s+(?:one|\d+)\s+hours?|instantly|same\s+day)|(?:send|invest|transfer|deposit)\s+.*?(?:receive|get|earn|return)\s+.*?(?:in|within)\s+(?:one|\d+)\s+hours?|send\s+.*?(?:in\s+)?crypto(?:currency)?\s+and\s+receive|receive\s+.*?(?:within|in)\s+\d+\s+(?:hour|hr|min|day)s?|double\s+your\s+crypto|send\s+.*?(?:cryptocurrency|crypto).*?receive.*?within)/i,
     reason: 'Cryptocurrency doubling scheme soliciting upfront funds with promises of rapid guaranteed returns.',
   },
 
@@ -465,32 +465,31 @@ export function analyzeWithHeuristics(
     }
   }
 
-  // Handle case where NO threat signatures and NO context dampeners matched:
-  // An unverified message must NOT be assigned a 0/100 Safe score!
-  if (matchedThreats.length === 0 && matchedDampeners.length === 0) {
+  // If NO threat signatures matched, message contains no suspicious request, deceptive intent, or harmful action
+  if (matchedThreats.length === 0) {
     return {
-      prediction: 'suspicious',
-      risk_score: 35,
-      confidence: 0.60,
-      category: 'unverified_content',
+      prediction: 'genuine',
+      risk_score: 0,
+      confidence: 0.85,
+      category: 'legitimate',
       indicators: [],
-      explanation: 'Offline heuristic check found no specific signature or conversational context markers. Contextual safety cannot be certified without AI evaluation.',
+      explanation: 'No suspicious intent or harmful request detected.',
       recommendations: [
-        'Verify the sender identity and context through a trusted secondary channel.',
-        'Do not provide credentials, payment, or personal information.',
+        'No immediate defensive action required.',
       ],
-      summary: 'Unverified content requiring contextual review (Heuristic Risk Score: 35/100).',
+      summary: 'Content verified as safe with no suspicious threat signatures detected.',
       engine: 'heuristic_fallback',
     };
   }
 
   const risk_score = Math.min(100, Math.max(0, netScore));
 
-  // 4. Derive three-tier prediction
+  // 4. Derive three-tier prediction per Section 4 operational thresholds:
+  // SAFE: 0–20 | SUSPICIOUS: 21–49 | SCAM: 50–100
   let prediction: 'scam' | 'suspicious' | 'genuine';
-  if (risk_score >= 60) {
+  if (risk_score >= 50) {
     prediction = 'scam';
-  } else if (risk_score >= 30) {
+  } else if (risk_score >= 21) {
     prediction = 'suspicious';
   } else {
     prediction = 'genuine';
@@ -564,7 +563,7 @@ export function analyzeWithHeuristics(
     if (matchedDampeners.length > 0) {
       explanation = `Message verified as standard legitimate communication. Found authentic context markers (${matchedDampeners[0].rule.reason.toLowerCase()}) with no hostile credential or financial harvesting lures.`;
     } else {
-      explanation = `No deceptive lures, high-pressure manipulation, or credential-harvesting patterns were detected in this submission. Normal human conversational flow.`;
+      explanation = `No suspicious intent or harmful request detected.`;
     }
   }
 
