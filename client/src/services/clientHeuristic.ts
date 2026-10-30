@@ -247,6 +247,16 @@ const CLIENT_THREAT_RULES: ThreatRule[] = [
     regex: /(?:verify\s+it\s+using\s+this\s+unfamiliar\s+website|account\s+has\s+a\s+problem.*verify.*website|visit\s+this\s+unfamiliar\s+link)/i,
     reason: 'Deceptive link lure directing victim to an unfamiliar website to resolve a fabricated account issue.',
   },
+
+  // --- 16. UNAUTHORIZED INSTITUTIONAL / UNIVERSITY CREDENTIAL SOLICITATION ---
+  {
+    id: 'institutional_credential_solicitation',
+    category: 'credential_theft',
+    weight: 75,
+    critical: false,
+    regex: /(?:(?:give\s+me|send\s+me|share|provide|disclose|forward|hand\s+over|requesting|tell\s+me)\s+.*?(?:credentials?|passwords?|usernames?|username\s+and\s+password|login\s+details|access\s+tokens?|admin\s+credentials).*?(?:universit(?:y|ies)|college|school|institution|staff|admin|administrator|student|faculty)|(?:give\s+me|send\s+me|share|provide|disclose|forward)\s+.*?(?:private|staff|admin|administrator|student)\s+(?:login\s+)?(?:credentials?|passwords?|accounts?)|(?:credentials?|passwords?)\s+of\s+(?:the\s+)?(?:universit(?:y|ies)|colleges?|institutions?|staff|students?|admins?))/i,
+    reason: 'Unauthorized solicitation of private university, staff, or student login credentials without established authorization.',
+  },
 ];
 
 interface ContextRule {
@@ -304,6 +314,12 @@ const CLIENT_CONTEXT_DAMPENERS: ContextRule[] = [
     weightReduction: 85,
     regex: /(?:cybersecurity\s+class\s+discussed\s+why|why\s+military\s+credentials\s+must\s+remain\s+confidential|academic\s+discussion\s+on\s+security|lecture\s+on\s+credential\s+protection|information\s+security\s+curriculum)/i,
     reason: 'Educational or policy discussion about cybersecurity and information protection principles.',
+  },
+  {
+    id: 'university_public_navigation_help',
+    weightReduction: 85,
+    regex: /(?:where\s+can\s+i\s+find\s+(?:the\s+)?(?:university|college|student|portal)\s+login\s+page|how\s+do\s+i\s+reset\s+my\s+(?:university|college|student|portal)\s+password|our\s+university\s+teaches\s+students\s+how\s+to\s+protect|where\s+can\s+i\s+log\s+in|help\s+me\s+understand\s+our\s+institutional\s+authentication\s+process|i\s+need\s+access\s+to\s+my\s+own\s+student\s+portal)/i,
+    reason: 'Legitimate institutional navigation, educational instruction, or self-service password recovery inquiry without credential disclosure demands.',
   },
 ];
 

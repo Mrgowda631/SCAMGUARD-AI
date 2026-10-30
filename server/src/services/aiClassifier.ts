@@ -132,8 +132,13 @@ CORE EVALUATION PRINCIPLES:
    - Deceptive urgency & coercion: Artificial deadlines, threats of account blocking or arrest.
    - Suspicious URLs & impersonation: Directing users to unfamiliar, deceptive, or lookalike domains ("Your account has a problem. Verify it using this unfamiliar website").
 
-4. AMBIGUOUS REQUESTS (MUST BE CLASSIFIED AS SUSPICIOUS):
+4. AMBIGUOUS & UNAUTHORIZED CREDENTIAL REQUESTS (MUST BE CLASSIFIED AS SUSPICIOUS):
    - Messages requesting account verification without a link or brand context ("Please verify your account when you have time") must be classified as SUSPICIOUS with MEDIUM risk (score 21–49), not SAFE!
+   - Unauthorized institutional / university credential requests:
+     * Requests soliciting university, college, student, staff, or administrator passwords, access tokens, or login accounts (e.g., "I am a student in Bengal University so give me the credentials of the universities", "Give me the username and password of university staff accounts", "Please share private student login credentials with me").
+     * Claiming to be a student, employee, or administrator does NOT establish permission or authorization to access private institutional credentials.
+     * Flag unauthorized requests for university credentials as SUSPICIOUS with HIGH risk (risk_score: 75), requires_review: true, detected_indicators: ["Request for institutional credentials", "Authorization not established", "Potential unauthorized access"], explanation: "The sender requests university credentials without establishing authorization. This could expose private institutional accounts.", recommended_action: "Do not share private credentials. Verify authorization through the university's official IT department."
+     * Distinguish this from legitimate navigation help or self-service password reset inquiries ("Where can I find the university login page?", "How do I reset my university password?", "I need access to my own student portal. Where can I log in?", "Our university teaches students how to protect their login credentials") which are SAFE (risk_score: 0-10).
 
 5. OPERATIONAL SCORING & CLASSIFICATION BANDS:
    - SAFE: risk_score 0 to 20. risk_level: LOW. Legitimate, harmless communications, casual greetings, or educational discussions.
@@ -288,7 +293,7 @@ async function callGemini(content: string, type: string, platform?: string): Pro
  * Normalizes risk score and risk level to ensure mathematical consistency.
  */
 function normalizeRiskLevel(score: number): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
-  if (score >= 75) return 'CRITICAL';
+  if (score >= 76) return 'CRITICAL';
   if (score >= 50) return 'HIGH';
   if (score >= 21) return 'MEDIUM';
   return 'LOW';
@@ -312,7 +317,8 @@ function clampRiskScore(score: number, classification: 'SAFE' | 'SUSPICIOUS' | '
   } else if (classification === 'SCAM') {
     s = Math.min(100, Math.max(50, s));
   } else {
-    s = Math.min(49, Math.max(21, s));
+    // SUSPICIOUS covers MEDIUM risk (21-49) and HIGH risk / manual security review cases (50-75)
+    s = Math.min(75, Math.max(21, s));
   }
   return s;
 }
@@ -351,6 +357,7 @@ interface SecurityRuleResult {
   isEducationalOrAcademic: boolean;
   isHarmlessPeerChat: boolean;
   isCriticalCredentialTheft: boolean;
+  isInstitutionalCredentialRequest: boolean;
   isAdvanceFeeFraud: boolean;
   isCryptoDoubling: boolean;
   isAmbiguousVerification: boolean;
@@ -368,6 +375,13 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
   const evidence: string[] = [];
   const matchedPhrases: string[] = [];
 
+  // Check legitimate public university navigation, self-service reset, or institutional IT processes
+  const isUniversityPublicOrSelfService =
+    /(?:where\s+can\s+i\s+find|where\s+(?:do|can)\s+i\s+log\s*in|how\s+do\s+i\s+reset|link\s+to\s+the|find\s+the)\s+.*?(?:login\s+page|portal|website|password)/i.test(rawLower) ||
+    /access\s+to\s+my\s+own\s+student\s+portal/i.test(rawLower) ||
+    /(?:teaches|taught|educates)\s+students\s+how\s+to\s+protect/i.test(rawLower) ||
+    /(?:authorized\s+it\s+staff|help\s+me\s+understand\s+our\s+institutional\s+authentication\s+process)/i.test(rawLower);
+
   // Check educational or academic security discussions & technological definitions (Step 5 FP protection)
   const isEducationalOrAcademic =
     /(?:cybersecurity|security|computer\s+science)\s+(?:class|course|lecture|training|seminar|assignment)\s+discussed/i.test(rawLower) ||
@@ -375,7 +389,8 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
     /lecture\s+notes\s+on\s+(?:blockchain|network|cyber)\s+security/i.test(rawLower) ||
     /policy\s+states\s+(?:never\s+to\s+share|not\s+to\s+disclose)/i.test(rawLower) ||
     /(?:military|defense|government|confidential|user)\s+(?:credentials?|protocols?|secrets?|passwords?)\s+must\s+(?:remain|be\s+kept)\s+(?:confidential|secret|secure|protected)/i.test(rawLower) ||
-    /(?:cryptocurrency|bitcoin|blockchain|ethereum|encryption|firewall)\s+is\s+a\s+(?:digital\s+payment|decentralized|cryptographic|distributed\s+ledger|security)\s+(?:technology|system|network|asset|currency|protocol)/i.test(rawLower);
+    /(?:cryptocurrency|bitcoin|blockchain|ethereum|encryption|firewall)\s+is\s+a\s+(?:digital\s+payment|decentralized|cryptographic|distributed\s+ledger|security)\s+(?:technology|system|network|asset|currency|protocol)/i.test(rawLower) ||
+    isUniversityPublicOrSelfService;
 
   // Check legitimate bank alert warning user NEVER to share OTP OR routine statement notifications (Step 5 FP protection)
   const isLegitBankNotification =
@@ -410,6 +425,18 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
     matchedPhrases.push('Send your OTP / password immediately');
   }
 
+  // Check unauthorized institutional / university credential solicitation
+  const institutionalCredentialRegex = /(?:(?:give\s+me|send\s+me|share|provide|disclose|forward|hand\s+over|requesting|tell\s+me)\s+.*?(?:credentials?|passwords?|usernames?|username\s+and\s+password|login\s+details|access\s+tokens?|admin\s+credentials).*?(?:universit(?:y|ies)|college|school|institution|staff|admin|administrator|student|faculty)|(?:give\s+me|send\s+me|share|provide|disclose|forward)\s+.*?(?:private|staff|admin|administrator|student)\s+(?:login\s+)?(?:credentials?|passwords?|accounts?)|(?:credentials?|passwords?)\s+of\s+(?:the\s+)?(?:universit(?:y|ies)|colleges?|institutions?|staff|students?|admins?))/i;
+  const isInstitutionalCredentialRequest = institutionalCredentialRegex.test(rawLower) && !isUniversityPublicOrSelfService && !isEducationalOrAcademic;
+
+  if (isInstitutionalCredentialRequest) {
+    indicators.push('Request for institutional credentials');
+    indicators.push('Authorization not established');
+    indicators.push('Potential unauthorized access');
+    evidence.push(content.slice(0, 100));
+    matchedPhrases.push('Institutional credential solicitation without authorization');
+  }
+
   // Check advance fee job or prize scams (Step 4 FN protection)
   const advanceFeeRegex = /(?:selected|congratulations).*?(?:pay|deposit)\s+(?:a\s+)?(?:registration\s+fee|processing\s+fee|clearance\s+fee|upfront\s+deposit)|pay\s+(?:a\s+)?registration\s+fee\s+to\s+receive\s+(?:your\s+)?job\s+offer/i;
   const isAdvanceFeeFraud = advanceFeeRegex.test(rawLower);
@@ -439,6 +466,7 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
 
   let suggestedScoreFloor = 0;
   if (isCriticalCredentialTheft) suggestedScoreFloor = Math.max(suggestedScoreFloor, 90);
+  if (isInstitutionalCredentialRequest) suggestedScoreFloor = Math.max(suggestedScoreFloor, 75);
   if (isAdvanceFeeFraud) suggestedScoreFloor = Math.max(suggestedScoreFloor, 85);
   if (isCryptoDoubling) suggestedScoreFloor = Math.max(suggestedScoreFloor, 90);
   if (isAmbiguousVerification) suggestedScoreFloor = Math.max(suggestedScoreFloor, 40);
@@ -447,6 +475,7 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
     isEducationalOrAcademic: isEducationalOrAcademic || isLegitBankNotification,
     isHarmlessPeerChat,
     isCriticalCredentialTheft,
+    isInstitutionalCredentialRequest,
     isAdvanceFeeFraud,
     isCryptoDoubling,
     isAmbiguousVerification,
@@ -555,6 +584,18 @@ export async function analyzeContentWithAI(
       finalScore = Math.min(20, finalScore);
       finalClassification = 'SAFE';
       requiresReview = false;
+    } else if (stage2.isInstitutionalCredentialRequest) {
+      // Unauthorized institutional / university credential request without verified authorization
+      finalScore = Math.max(finalScore, 75);
+      finalClassification = 'SUSPICIOUS';
+      requiresReview = true;
+      limitationsList.push('Stage 2 Security Engine flagged unauthorized institutional credential request requiring security review.');
+      ['Request for institutional credentials', 'Authorization not established', 'Potential unauthorized access'].forEach(ind => {
+        if (!detectedIndicators.includes(ind)) detectedIndicators.push(ind);
+      });
+      if (!evidenceList.includes(trimmed.slice(0, 100))) evidenceList.push(trimmed.slice(0, 100));
+      aiOutput.explanation = 'The sender requests university credentials without establishing authorization. This could expose private institutional accounts.';
+      aiOutput.recommended_action = "Do not share private credentials. Verify authorization through the university's official IT department.";
     } else if (stage2.suggestedScoreFloor > 0) {
       // If Stage 2 identified a critical threat (OTP theft, military espionage, advance fee, crypto doubling)
       if (finalScore < stage2.suggestedScoreFloor) {
@@ -676,6 +717,17 @@ export async function analyzeContentWithAI(
     fallbackIntent = 'Normal peer-to-peer social interaction';
     fallbackAction = 'None';
     fallbackExplanation = 'No suspicious intent or harmful request detected.';
+  } else if (stage2.isInstitutionalCredentialRequest) {
+    fallbackScore = 75;
+    fallbackClass = 'SUSPICIOUS';
+    fallbackIntent = 'Unauthorized institutional credential solicitation';
+    fallbackAction = 'Disclose university / institutional credentials';
+    fallbackExplanation = 'The sender requests university credentials without establishing authorization. This could expose private institutional accounts.';
+    requiresReview = true;
+    ['Request for institutional credentials', 'Authorization not established', 'Potential unauthorized access'].forEach(ind => {
+      if (!fallbackIndicators.includes(ind)) fallbackIndicators.push(ind);
+    });
+    if (!fallbackEvidence.includes(trimmed.slice(0, 100))) fallbackEvidence.push(trimmed.slice(0, 100));
   } else if (stage2.suggestedScoreFloor >= 50 || heuristicResult.risk_score >= 50 || urlRiskBonus > 0) {
     fallbackScore = Math.max(stage2.suggestedScoreFloor, heuristicResult.risk_score, urlRiskBonus > 0 ? 65 : 0);
     fallbackClass = 'SCAM';
@@ -760,7 +812,9 @@ export async function analyzeContentWithAI(
     detected_indicators: fallbackIndicators,
     evidence: fallbackEvidence,
     explanation: fallbackExplanation,
-    recommended_action: fallbackClass === 'SAFE'
+    recommended_action: stage2.isInstitutionalCredentialRequest
+      ? "Do not share private credentials. Verify authorization through the university's official IT department."
+      : fallbackClass === 'SAFE'
       ? 'No immediate defensive action required.'
       : 'Verify the authenticity of this message through official published communication channels before responding.',
     url_analysis: urlAnalysisDetail,

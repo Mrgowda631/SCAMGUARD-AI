@@ -184,7 +184,12 @@ if (process.env.NODE_ENV !== 'test') {
       try {
         const bridge = express();
         bridge.all('*', (req, res) => {
-          res.redirect(302, `http://localhost:8080${req.originalUrl}`);
+          if (req.path.startsWith('/api')) {
+            // Preserve HTTP method (POST/PUT) and body for API requests
+            res.redirect(307, `http://localhost:8000${req.originalUrl}`);
+          } else {
+            res.redirect(302, `http://localhost:8080${req.originalUrl}`);
+          }
         });
         const server = bridge.listen(bPort, '0.0.0.0', () => {
           console.log(`[SCAMGUARD AI] Port bridge active: http://localhost:${bPort} -> http://localhost:8080`);
