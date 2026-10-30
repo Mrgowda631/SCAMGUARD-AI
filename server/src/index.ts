@@ -41,6 +41,8 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:3000',
+  'http://localhost:8000',
+  'http://127.0.0.1:8000',
 ];
 
 app.use(cors({
@@ -169,7 +171,7 @@ app.use(errorHandler);
 
 // Start server if not running in test runner
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(config.port, () => {
+  app.listen(config.port, '0.0.0.0', () => {
     console.log(`[SCAMGUARD AI] SOC Backend running on port ${config.port}`);
     console.log(`[SCAMGUARD AI] Gemini AI status: ${isGeminiConfigured() ? `CONFIGURED (${config.geminiModel})` : 'UNCONFIGURED (Heuristic Fallback Active)'}`);
   });
@@ -184,7 +186,7 @@ if (process.env.NODE_ENV !== 'test') {
         bridge.all('*', (req, res) => {
           res.redirect(302, `http://localhost:8080${req.originalUrl}`);
         });
-        const server = bridge.listen(bPort, () => {
+        const server = bridge.listen(bPort, '0.0.0.0', () => {
           console.log(`[SCAMGUARD AI] Port bridge active: http://localhost:${bPort} -> http://localhost:8080`);
         });
         server.on('error', () => {
