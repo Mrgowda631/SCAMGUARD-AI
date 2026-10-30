@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 export const Login: React.FC = () => {
-  const { user, login } = useAuth();
+  const { user, login, loginOffline } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,6 +26,7 @@ export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isConnectionError, setIsConnectionError] = useState(false);
 
   // If already authenticated, redirect to destination or home page
   const from = (location.state as any)?.from?.pathname || '/';
@@ -76,6 +77,7 @@ export const Login: React.FC = () => {
 
     try {
       setSubmitting(true);
+      setIsConnectionError(false);
       await login(trimmedEmail, password);
       showToast('Analyst authenticated. Welcome to SCAMGUARD SOC.', 'success');
       navigate(from, { replace: true });
@@ -87,10 +89,12 @@ export const Login: React.FC = () => {
         rawMsg.includes('Failed to parse response') ||
         rawMsg.includes('AbortError')
       ) {
+        setIsConnectionError(true);
         setError(
-          'Unable to connect to the SCAMGUARD SOC backend service (port 8000). Please verify that "npm run dev" is running in your terminal.'
+          'Backend service (port 8000) unreachable. Please verify that "npm run dev" is running in your terminal, or enter using Offline SOC Fallback Mode.'
         );
       } else {
+        setIsConnectionError(false);
         setError(rawMsg || 'Invalid email or password credentials. Please verify your access rights.');
       }
     } finally {
@@ -98,11 +102,18 @@ export const Login: React.FC = () => {
     }
   };
 
+  const handleOfflineLogin = () => {
+    loginOffline(email || 'shreyasc299@gmail.com');
+    showToast('Entered SCAMGUARD SOC in Offline Fallback Mode.', 'info');
+    navigate(from, { replace: true });
+  };
+
   // Quick fill helper for local evaluator / admin credentials
   const fillAdminCredentials = () => {
     setEmail('shreyasc299@gmail.com');
     setPassword('Shreyas@631');
     setError(null);
+    setIsConnectionError(false);
   };
 
   return (
@@ -172,12 +183,28 @@ export const Login: React.FC = () => {
 
           {/* Error Alert Box */}
           {error && (
-            <div className="p-3.5 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs font-sans flex items-start space-x-2.5 backdrop-blur-sm animate-slide-in">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
-              <div className="flex-1 leading-relaxed">
-                <strong className="font-semibold block font-mono text-red-300">Access Denied:</strong>
-                {error}
+            <div className="p-3.5 rounded-xl bg-red-950/80 border border-red-500/50 text-red-200 text-xs font-sans flex flex-col space-y-2 backdrop-blur-sm animate-slide-in">
+              <div className="flex items-start space-x-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+                <div className="flex-1 leading-relaxed">
+                  <strong className="font-semibold block font-mono text-red-300">
+                    {isConnectionError ? 'SOC Gateway Connection Warning:' : 'Access Denied:'}
+                  </strong>
+                  {error}
+                </div>
               </div>
+
+              {isConnectionError && (
+                <div className="pt-2 border-t border-red-800/60 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={handleOfflineLogin}
+                    className="px-3 py-1.5 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 font-mono text-[11px] font-semibold transition-colors flex items-center space-x-1.5 shadow-sm"
+                  >
+                    <span>Enter in Offline SOC Mode &rarr;</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

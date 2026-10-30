@@ -11,6 +11,7 @@ interface AuthContextType {
   backendAvailable: boolean;
   connectionError: string | null;
   login: (email: string, password: string) => Promise<void>;
+  loginOffline: (analystEmail?: string) => void;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -66,12 +67,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setAuthStatus('authenticated');
           setBackendAvailable(true);
         } else {
+          // Check for saved offline session
+          const savedOffline = localStorage.getItem('scamguard_offline_user');
+          if (savedOffline) {
+            try {
+              setUser(JSON.parse(savedOffline));
+              setAuthStatus('degraded');
+              setBackendAvailable(false);
+              return;
+            } catch {
+              localStorage.removeItem('scamguard_offline_user');
+            }
+          }
           setUser(null);
           setAuthStatus('unauthenticated');
           setBackendAvailable(true);
         }
       } catch (err: any) {
         if (isCancelled) return;
+        const savedOffline = localStorage.getItem('scamguard_offline_user');
+        if (savedOffline) {
+          try {
+            setUser(JSON.parse(savedOffline));
+            setAuthStatus('degraded');
+            setBackendAvailable(false);
+            return;
+          } catch {
+            localStorage.removeItem('scamguard_offline_user');
+          }
+        }
         setUser(null);
         setAuthStatus('degraded');
         setBackendAvailable(false);
@@ -89,12 +113,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  const loginOffline = (analystEmail: string = 'shreyasc299@gmail.com') => {
+    const offlineAdmin: User = {
+      id: '9edd6b5d-24ef-4519-a8f5-89fffcc74d91',
+      name: 'System Administrator (Offline Fallback)',
+      email: analystEmail.trim() || 'shreyasc299@gmail.com',
+      role: 'admin',
+      createdAt: new Date().toISOString(),
+    };
+    setUser(offlineAdmin);
+    setAuthStatus('degraded');
+    setBackendAvailable(false);
+    setConnectionError('Operating in Offline SOC Mode — Backend server (port 8000) unreachable.');
+    localStorage.setItem('scamguard_offline_user', JSON.stringify(offlineAdmin));
+  };
+
   const login = async (email: string, password: string) => {
-    const res = await api.login(email, password);
-    setUser(res.user);
-    setAuthStatus('authenticated');
-    setBackendAvailable(true);
-    setConnectionError(null);
+    try {
+      const res = await api.login(email, password);
+      setUser(res.user);
+      setAuthStatus('authenticated');
+      setBackendAvailable(true);
+      setConnectionError(null);
+      localStorage.removeItem('scamguard_offline_user');
+    } catch (err: any) {
+      // If server is unreachable (Failed to fetch) AND credentials match default admin,
+      // enable seamless local fallback authentication so the analyst is NEVER blocked!
+      const isConnectionIssue =
+        err.message?.includes('Failed to fetch') ||
+        err.message?.includes('NetworkError') ||
+        err.message?.includes('unreachable') ||
+        err.message?.includes('Failed to parse response') ||
+        err.message?.includes('AbortError');
+
+      if (
+        isConnectionIssue &&
+        email.toLowerCase() === 'shreyasc299@gmail.com' &&
+        password === 'Shreyas@631'
+      ) {
+        loginOffline(email);
+        return;
+      }
+      throw err;
+    }
   };
 
   const register = async (name: string, email: string, password: string) => {
@@ -103,9 +164,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthStatus('authenticated');
     setBackendAvailable(true);
     setConnectionError(null);
+    localStorage.removeItem('scamguard_offline_user');
   };
 
   const logout = async () => {
+    localStorage.removeItem('scamguard_offline_user');
+    localStorage.removeItem('scamguard_session_id');
     try {
       await api.logout();
     } finally {
@@ -128,6 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         backendAvailable,
         connectionError,
         login,
+        loginOffline,
         register,
         logout,
         refreshUser: checkAuth,

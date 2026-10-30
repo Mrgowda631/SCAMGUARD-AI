@@ -40,12 +40,37 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
       headers.set('X-Session-Id', storedSession);
     }
 
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
-      ...fetchOptions,
-      headers,
-      signal: controller.signal,
-      credentials: 'include', // Ensures HTTP-only session cookies are transmitted
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${BASE_URL}${endpoint}`, {
+        ...fetchOptions,
+        headers,
+        signal: controller.signal,
+        credentials: 'include', // Ensures HTTP-only session cookies are transmitted
+      });
+    } catch (networkErr: any) {
+      // Automatic dual-channel fallback: If running on localhost and proxy fetch fails (e.g. Vite proxy drop),
+      // attempt direct fetch to backend service on port 8000
+      if (
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+        !BASE_URL.includes(':8000')
+      ) {
+        const directUrl = `http://${window.location.hostname}:8000/api${endpoint}`;
+        try {
+          response = await fetch(directUrl, {
+            ...fetchOptions,
+            headers,
+            signal: controller.signal,
+            credentials: 'include',
+          });
+        } catch {
+          throw networkErr;
+        }
+      } else {
+        throw networkErr;
+      }
+    }
 
     // Handle file downloads
     const disposition = response.headers.get('Content-Disposition');

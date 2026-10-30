@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+﻿import OpenAI from 'openai';
 import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
 import { config, isGeminiConfigured, isOpenAIConfigured, isAiConfigured } from '../config.js';
@@ -273,22 +273,60 @@ async function callGemini(content: string, type: string, platform?: string): Pro
  * Normalizes risk score and risk level to ensure mathematical consistency.
  */
 function normalizeRiskLevel(score: number): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
-  if (score >= 80) return 'CRITICAL';
-  if (score >= 60) return 'HIGH';
-  if (score >= 30) return 'MEDIUM';
+  if (score >= 75) return 'CRITICAL';
+  if (score >= 50) return 'HIGH';
+  if (score >= 25) return 'MEDIUM';
   return 'LOW';
 }
 
 function normalizeClassification(score: number, explicitClass?: string): 'SAFE' | 'SUSPICIOUS' | 'SCAM' {
   if (explicitClass === 'SCAM' || explicitClass === 'SUSPICIOUS' || explicitClass === 'SAFE') {
-    // Enforce consistency: a high risk score cannot be marked SAFE
-    if (score >= 60 && explicitClass === 'SAFE') return 'SCAM';
-    if (score >= 30 && explicitClass === 'SAFE') return 'SUSPICIOUS';
+    if (score >= 50 && explicitClass === 'SAFE') return 'SCAM';
+    if (score >= 25 && explicitClass === 'SAFE') return 'SUSPICIOUS';
     return explicitClass;
   }
-  if (score >= 60) return 'SCAM';
-  if (score >= 30) return 'SUSPICIOUS';
+  if (score >= 50) return 'SCAM';
+  if (score >= 25) return 'SUSPICIOUS';
   return 'SAFE';
+}
+
+function clampRiskScore(score: number, classification: 'SAFE' | 'SUSPICIOUS' | 'SCAM'): number {
+  let s = Math.round(score);
+  // Phase 6 Rule: Never force SAFE messages to have 0 risk or SCAM messages to have 100 risk
+  if (classification === 'SAFE') {
+    s = Math.min(24, Math.max(4, s));
+  } else if (classification === 'SCAM') {
+    s = Math.min(96, Math.max(50, s));
+  } else {
+    s = Math.min(49, Math.max(25, s));
+  }
+  return s;
+}
+
+function calculateDynamicConfidence(
+  classification: 'SAFE' | 'SUSPICIOUS' | 'SCAM',
+  riskScore: number,
+  indicatorCount: number,
+  evidenceCount: number,
+  hasUrl: boolean,
+  isFallback: boolean,
+  baseAiConfidence?: number
+): number {
+  if (!isFallback && typeof baseAiConfidence === 'number' && baseAiConfidence > 0) {
+    const modifier = Math.min(0.08, indicatorCount * 0.02 + evidenceCount * 0.02);
+    return Math.min(0.96, Math.max(0.60, parseFloat((baseAiConfidence + modifier).toFixed(2))));
+  }
+
+  // Phase 6 Rule: Dynamic confidence based on evidence strength, never a fixed percentage
+  let conf = 0.70;
+  if (classification === 'SCAM') {
+    conf = 0.82 + Math.min(0.12, indicatorCount * 0.03 + (hasUrl ? 0.04 : 0));
+  } else if (classification === 'SAFE') {
+    conf = 0.84 + Math.min(0.08, evidenceCount * 0.02);
+  } else {
+    conf = 0.64 + Math.min(0.08, indicatorCount * 0.02);
+  }
+  return Math.min(0.95, Math.max(0.60, parseFloat(conf.toFixed(2))));
 }
 
 /**
@@ -329,7 +367,7 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
   const isLegitBankNotification =
     (/(?:never|do\s+not)\s+share\s+your\s+(?:otp|pin|password)/i.test(rawLower) &&
     !/(?:send|share|reply\s+with|forward)\s+(?:your\s+)?(?:otp|code|pin)/i.test(rawLower)) ||
-    /(?:your\s+)?(?:monthly\s+)?(?:bank|account|card)\s+statement\s+is\s+available\s+in\s+your\s+official\s+(?:banking\s+)?(?:application|app|portal)/i.test(rawLower);
+    /(?:your\s+)?(?:monthly\s+)?(?:bank|account|card)\s+statement(?:\s+for\s+this\s+month|\s+for\s+[\w\s]+)?\s+is\s+(?:now\s+)?available\s+(?:in|through|via)\s+(?:your\s+|the\s+)?official\s+(?:banking\s+)?(?:application|app|portal)|statement.*?(?:available|ready).*?(?:official\s+(?:banking\s+)?(?:application|app|portal))/i.test(rawLower);
 
   // Check harmless peer chats (Step 5 FP protection)
   const isHarmlessPeerChat =
@@ -530,8 +568,18 @@ export async function analyzeContentWithAI(
       limitationsList.push('Analytical divergence between neural contextual classifier and rule heuristics; manual review advised.');
     }
 
-    const finalRiskLevel = normalizeRiskLevel(finalScore);
     finalClassification = normalizeClassification(finalScore, finalClassification);
+    finalScore = clampRiskScore(finalScore, finalClassification);
+    const finalRiskLevel = normalizeRiskLevel(finalScore);
+    const dynamicConfidence = calculateDynamicConfidence(
+      finalClassification,
+      finalScore,
+      detectedIndicators.length,
+      evidenceList.length,
+      urlAnalysisDetail.found,
+      false,
+      aiOutput.confidence
+    );
 
     // Merge legacy indicators
     const legacyIndicators: ScanIndicator[] = detectedIndicators.map(str => {
@@ -567,7 +615,7 @@ export async function analyzeContentWithAI(
     return {
       classification: finalClassification,
       risk_score: finalScore,
-      confidence: Math.min(0.99, Math.max(0.70, aiOutput.confidence)),
+      confidence: dynamicConfidence,
       risk_level: finalRiskLevel,
       intent: aiOutput.intent || (finalClassification === 'SAFE' ? 'Harmless communication' : 'Potential social engineering'),
       requested_action: aiOutput.requested_action || (finalClassification === 'SAFE' ? 'None' : 'Suspicious action requested'),
@@ -650,7 +698,16 @@ export async function analyzeContentWithAI(
     requiresReview = true;
   }
 
+  fallbackScore = clampRiskScore(fallbackScore, fallbackClass);
   const fallbackRiskLevel = normalizeRiskLevel(fallbackScore);
+  const dynamicFallbackConfidence = calculateDynamicConfidence(
+    fallbackClass,
+    fallbackScore,
+    fallbackIndicators.length,
+    fallbackEvidence.length,
+    urlAnalysisDetail.found,
+    true
+  );
   heuristicResult.indicators.forEach(i => fallbackIndicators.push(`${i.phrase}: ${i.reason}`));
 
   const legacyIndicators: ScanIndicator[] = fallbackIndicators.map(str => {
@@ -674,7 +731,7 @@ export async function analyzeContentWithAI(
   return {
     classification: fallbackClass,
     risk_score: fallbackScore,
-    confidence: 0.75,
+    confidence: dynamicFallbackConfidence,
     risk_level: fallbackRiskLevel,
     intent: fallbackIntent,
     requested_action: fallbackAction,

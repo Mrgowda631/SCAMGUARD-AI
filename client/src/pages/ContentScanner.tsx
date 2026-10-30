@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { api } from '../services/api';
 import { AnalysisResult } from '../types';
 import { AnalysisResultCard } from '../components/AnalysisResultCard';
@@ -128,14 +128,23 @@ export const ContentScanner: React.FC = () => {
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Error Alert Banner */}
+      </div>      {/* Error Alert Banner */}
       {error && (
         <div className="p-4 rounded-xl bg-red-950/70 border border-red-500/50 text-red-200 text-xs font-mono flex items-start space-x-3 backdrop-blur-sm animate-fade-in">
           <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-          <div>
-            <strong className="text-red-300">Analysis Error:</strong> {error}
+          <div className="flex-1 space-y-2">
+            <div>
+              <strong className="text-red-300">Analysis Error:</strong> {error}
+            </div>
+            <button
+              type="button"
+              onClick={handleScan}
+              disabled={analyzing}
+              className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-md text-xs font-mono font-medium text-red-200 bg-red-900/60 hover:bg-red-800/80 border border-red-700/60 transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Retry Analysis</span>
+            </button>
           </div>
         </div>
       )}

@@ -361,7 +361,7 @@ const CONTEXT_DAMPENERS: ContextRule[] = [
   {
     id: 'routine_banking_service_notice',
     weightReduction: 50,
-    regex: /(?:your\s+)?(?:monthly\s+)?(?:bank|account|card)\s+statement\s+is\s+available\s+in\s+your\s+official\s+(?:banking\s+)?(?:application|app|portal)/i,
+    regex: /(?:your\s+)?(?:monthly\s+)?(?:bank|account|card)\s+statement(?:\s+for\s+this\s+month|\s+for\s+[\w\s]+)?\s+is\s+(?:now\s+)?available\s+(?:in|through|via)\s+(?:your\s+|the\s+)?official\s+(?:banking\s+)?(?:application|app|portal)|statement.*?(?:available|ready).*?(?:official\s+(?:banking\s+)?(?:application|app|portal))/i,
     reason: 'Routine institutional customer notification regarding account statement availability in official app.',
   },
   // 11. Technology & Financial Technology Factual Definition
