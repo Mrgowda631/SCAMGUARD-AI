@@ -379,5 +379,37 @@ describe('SCAMGUARD AI â€” Enhanced Detection Accuracy & Context Verificati
       expect(res.classification).toBe('SAFE');
       expect(res.risk_score).toBeLessThanOrEqual(20);
     });
+
+    // ==========================================
+    // SECTION 7: ADVANCE-FEE SCAM, GOVERNMENT IMPERSONATION & IDENTITY THEFT TESTS
+    // ==========================================
+    it('Advance-Fee Failure Target: Ragu EXARM officer government contract is SCAM CRITICAL RISK (90 pts)', async () => {
+      const text = 'Hello I am Ragu and an EXARM officer. I have a confidential government contract for you. Send you your ID proof and pay 2,000 as a registration fee to receive your payment.';
+      const res = await analyzeContentWithAI(text);
+      expect(res.classification).toBe('SCAM');
+      expect(res.risk_score).toBe(90);
+      expect(res.risk_level).toBe('CRITICAL');
+      expect(res.requires_review).toBe(true);
+      expect(res.category).toBe('advance_fee_and_identity_fraud');
+      expect(res.detected_indicators).toContain('Unverified military authority claim');
+      expect(res.detected_indicators).toContain('Government contract impersonation risk');
+      expect(res.detected_indicators).toContain('Advance registration fee request');
+      expect(res.detected_indicators).toContain('Identity document collection');
+      expect(res.detected_indicators).toContain('Promised future payment');
+    });
+
+    it('Benign Government Contract Announcement is SAFE', async () => {
+      const text = 'The Ministry of Road Transport published a public government contract tender on their official website. Check the portal for details.';
+      const res = await analyzeContentWithAI(text);
+      expect(res.classification).toBe('SAFE');
+      expect(res.risk_score).toBeLessThanOrEqual(20);
+    });
+
+    it('Benign HR Onboarding requesting ID Proof is SAFE', async () => {
+      const text = 'Welcome to the company! Please submit your ID proof and PAN card for official employee payroll registration. No payment is required.';
+      const res = await analyzeContentWithAI(text);
+      expect(res.classification).toBe('SAFE');
+      expect(res.risk_score).toBeLessThanOrEqual(25);
+    });
   });
 });

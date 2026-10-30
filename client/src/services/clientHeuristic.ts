@@ -257,6 +257,16 @@ const CLIENT_THREAT_RULES: ThreatRule[] = [
     regex: /(?:(?:give\s+me|send\s+me|share|provide|disclose|forward|hand\s+over|requesting|tell\s+me)\s+.*?(?:credentials?|passwords?|usernames?|username\s+and\s+password|login\s+details|access\s+tokens?|admin\s+credentials).*?(?:universit(?:y|ies)|college|school|institution|staff|admin|administrator|student|faculty)|(?:give\s+me|send\s+me|share|provide|disclose|forward)\s+.*?(?:private|staff|admin|administrator|student)\s+(?:login\s+)?(?:credentials?|passwords?|accounts?)|(?:credentials?|passwords?)\s+of\s+(?:the\s+)?(?:universit(?:y|ies)|colleges?|institutions?|staff|students?|admins?))/i,
     reason: 'Unauthorized solicitation of private university, staff, or student login credentials without established authorization.',
   },
+
+  // --- 17. ADVANCE-FEE, GOVERNMENT IMPERSONATION & IDENTITY THEFT (CRITICAL) ---
+  {
+    id: 'advance_fee_and_identity_fraud',
+    category: 'advance_fee_and_identity_fraud',
+    weight: 90,
+    critical: true,
+    regex: /(?:(?:ex[- ]?arm(?:y)?\s+officer|military\s+officer|government\s+contract|confidential\s+government).*?(?:registration\s+fee|id\s+proof|pay\s+[\d,]+)|(?:registration\s+fee|processing\s+fee).*?(?:to\s+receive\s+(?:your\s+)?payment|id\s+proof)|(?:id\s+proof|identity\s+proof).*?(?:pay\s+[\d,]+|registration\s+fee))/i,
+    reason: 'Advance-fee scam and identity theft: demands upfront registration fee and identity documents in exchange for unverified government contract or promised payment.',
+  },
 ];
 
 interface ContextRule {

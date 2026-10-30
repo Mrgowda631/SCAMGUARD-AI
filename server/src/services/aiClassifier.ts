@@ -127,6 +127,13 @@ CORE EVALUATION PRINCIPLES:
 3. ACCURATE SCAM IDENTIFICATION (MUST BE CLASSIFIED AS SCAM):
    - Credential & OTP theft: Direct requests to disclose or forward OTPs, passwords, PINs, or recovery seed phrases ("send your OTP immediately to prevent account closure", "share your password to prevent account suspension").
    - Unauthorized solicitation of confidential credentials / espionage: Requests for military credentials, access protocols, classified documents, internal network credentials (e.g., "I am an ex-army man. Give me the military credentials or access protocols"). Flag this immediately as SCAM with CRITICAL risk!
+   - Advance-fee scams, government/military impersonation, and identity theft (CRITICAL RISK / 90 PTS):
+     * When a sender claims an official government, military, employment, or business opportunity (e.g., "Hello I am Ragu and an EXARM officer. I have a confidential government contract for you") and asks the recipient to pay an advance fee (registration fee, processing fee, deposit) and/or provide identity documents (ID proof, Aadhaar, PAN, passport) before receiving promised money or contract payouts ("to receive your payment").
+     * Do not allow an unsupported authority claim to override suspicious financial behavior.
+     * Classify this combination as SCAM with CRITICAL risk (risk_score: 90), category: 'advance_fee_and_identity_fraud', requires_review: true.
+     * Detected indicators: ["Unverified military authority claim", "Government contract impersonation risk", "Advance registration fee request", "Identity document collection", "Promised future payment"].
+     * Explanation: "The sender claims to offer a confidential government contract, requests identity documents and demands an upfront registration fee in exchange for promised future payment. This combination strongly indicates a potential advance-fee scam and identity theft risk."
+     * Recommended action: "Do not pay the registration fee or share identity documents. Independently verify the organization through official contact channels."
    - Fake job offers & recruitment fees: Jobs requiring upfront deposits or registration fees ("pay a registration fee to receive your job offer").
    - Cryptocurrency doubling / high-yield investment schemes: Guaranteed returns, sending funds to receive multiplied amounts back ("send ₹5,000 and receive ₹10,000 in one hour").
    - Deceptive urgency & coercion: Artificial deadlines, threats of account blocking or arrest.
@@ -162,7 +169,7 @@ Return strictly a valid JSON object matching this schema:
   "risk_level": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   "intent": "Concise statement of sender intent",
   "requested_action": "Specific action requested, or 'None'",
-  "category": "phishing" | "credential_theft" | "advance_fee" | "crypto_scam" | "military_espionage" | "impersonation" | "legitimate" | "ambiguous_verification",
+  "category": "phishing" | "credential_theft" | "advance_fee" | "advance_fee_and_identity_fraud" | "crypto_scam" | "military_espionage" | "impersonation" | "legitimate" | "ambiguous_verification",
   "detected_indicators": ["Array of concise strings describing specific indicators found"],
   "evidence": ["Direct quotes or specific patterns from the message supporting the assessment"],
   "explanation": "Clear, concise forensic rationale explaining the findings",
@@ -358,6 +365,7 @@ interface SecurityRuleResult {
   isHarmlessPeerChat: boolean;
   isCriticalCredentialTheft: boolean;
   isInstitutionalCredentialRequest: boolean;
+  isAdvanceFeeAndIdentityFraud: boolean;
   isAdvanceFeeFraud: boolean;
   isCryptoDoubling: boolean;
   isAmbiguousVerification: boolean;
@@ -437,10 +445,42 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
     matchedPhrases.push('Institutional credential solicitation without authorization');
   }
 
+  // Check advance-fee fraud, government/military impersonation, and identity theft
+  const militaryAuthorityRegex = /(?:(?:i\s+am|this\s+is|we\s+are)\s+.*?(?:(?:ex[- ]?arm(?:y)?|military|army|armed\s+forces|defense|air\s+force|navy)\s+(?:officer|personnel|man|official|major|captain|colonel)|(?:from|with)\s+(?:the\s+)?(?:indian\s+)?(?:army|military|defense|navy|air\s+force))|(?:ex[- ]?arm(?:y)?\s+officer))/i;
+  const authorityClaimRegex = /(?:(?:i\s+am|this\s+is|we\s+are)\s+.*?(?:government\s+(?:officer|official|contractor|agent|representative)|police\s+(?:officer|inspector|sub[- ]inspector|commissioner)|customs\s+(?:officer|agent|official)|cbi\s+officer|rbi\s+(?:officer|manager)|bank\s+manager)|(?:from|with)\s+(?:the\s+)?(?:government|police|customs|cbi|rbi))/i;
+  const contractOrGovOpportunityRegex = /(?:confidential\s+)?government\s+(?:contract|project|tender|opportunity|work|assignment)|exclusive\s+(?:business|investment|contract)\s+opportunity|special\s+government\s+(?:grant|scheme|subsidy)/i;
+  const advanceFeeDemandRegex = /(?:pay|deposit|transfer|send)\s+(?:(?:rs\.?|inr|₹|\$)\s*)?\d+(?:,\d+)*(?:\s*(?:rs\.?|inr|₹|\$))?\s+(?:as\s+)?(?:a\s+)?(?:registration\s+fee|processing\s+fee|clearance\s+fee|security\s+deposit|application\s+fee|upfront\s+fee|advance\s+fee)|(?:registration|processing|clearance|application|upfront|advance)\s+fee\s+of\s+(?:(?:rs\.?|inr|₹|\$)\s*)?\d+|pay\s+(?:a\s+)?registration\s+fee\s+to\s+receive/i;
+  const identityDocumentRequestRegex = /(?:send|submit|share|upload|provide|forward|attach)\s+.*?(?:id\s+proof|identity\s+proof|identity\s+documents?|aadhaar(?:\s+card)?|pan(?:\s+card)?|passport(?:\s+copy)?|voter\s+id|national\s+id|driving\s+licen[sc]e|bank\s+(?:details|account\s+details|passbook)|kyc\s+documents?)|(?:copy\s+of\s+)?(?:your\s+)?(?:id\s+proof|identity\s+card|aadhaar|pan\s+card|passport)/i;
+  const promisedPaymentRegex = /(?:to\s+receive|to\s+get|to\s+release|to\s+claim|before\s+receiving)\s+(?:your\s+)?(?:payment|contract\s+amount|funds|money|salary|payout|compensation|reward)/i;
+
+  const hasMilitaryClaim = militaryAuthorityRegex.test(rawLower);
+  const hasAuthorityClaim = hasMilitaryClaim || authorityClaimRegex.test(rawLower);
+  const hasContractClaim = contractOrGovOpportunityRegex.test(rawLower);
+  const hasFeeDemand = advanceFeeDemandRegex.test(rawLower);
+  const hasIdRequest = identityDocumentRequestRegex.test(rawLower);
+  const hasPromisedPayment = promisedPaymentRegex.test(rawLower);
+
+  const isAdvanceFeeAndIdentityFraud =
+    !isEducationalOrAcademic &&
+    ((hasFeeDemand && (hasAuthorityClaim || hasContractClaim || hasIdRequest || hasPromisedPayment)) ||
+     (hasContractClaim && hasIdRequest && (hasFeeDemand || hasPromisedPayment)) ||
+     (hasAuthorityClaim && hasContractClaim && (hasFeeDemand || hasIdRequest)));
+
+  if (isAdvanceFeeAndIdentityFraud) {
+    if (hasMilitaryClaim) indicators.push('Unverified military authority claim');
+    else if (hasAuthorityClaim) indicators.push('Unverified authority claim');
+    if (hasContractClaim) indicators.push('Government contract impersonation risk');
+    if (hasFeeDemand) indicators.push('Advance registration fee request');
+    if (hasIdRequest) indicators.push('Identity document collection');
+    if (hasPromisedPayment) indicators.push('Promised future payment');
+    evidence.push(content.slice(0, 150));
+    matchedPhrases.push('Advance-fee government/military impersonation and identity theft');
+  }
+
   // Check advance fee job or prize scams (Step 4 FN protection)
   const advanceFeeRegex = /(?:selected|congratulations).*?(?:pay|deposit)\s+(?:a\s+)?(?:registration\s+fee|processing\s+fee|clearance\s+fee|upfront\s+deposit)|pay\s+(?:a\s+)?registration\s+fee\s+to\s+receive\s+(?:your\s+)?job\s+offer/i;
   const isAdvanceFeeFraud = advanceFeeRegex.test(rawLower);
-  if (isAdvanceFeeFraud) {
+  if (isAdvanceFeeFraud && !isAdvanceFeeAndIdentityFraud) {
     indicators.push('Stage 2 Security Rule: Upfront registration fee / advance fee required to receive employment offer or prize.');
     evidence.push('Pay a registration fee to receive your job offer');
     matchedPhrases.push('Pay a registration fee');
@@ -466,6 +506,7 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
 
   let suggestedScoreFloor = 0;
   if (isCriticalCredentialTheft) suggestedScoreFloor = Math.max(suggestedScoreFloor, 90);
+  if (isAdvanceFeeAndIdentityFraud) suggestedScoreFloor = Math.max(suggestedScoreFloor, 90);
   if (isInstitutionalCredentialRequest) suggestedScoreFloor = Math.max(suggestedScoreFloor, 75);
   if (isAdvanceFeeFraud) suggestedScoreFloor = Math.max(suggestedScoreFloor, 85);
   if (isCryptoDoubling) suggestedScoreFloor = Math.max(suggestedScoreFloor, 90);
@@ -476,6 +517,7 @@ function evaluateStage2SecurityRules(content: string): SecurityRuleResult {
     isHarmlessPeerChat,
     isCriticalCredentialTheft,
     isInstitutionalCredentialRequest,
+    isAdvanceFeeAndIdentityFraud,
     isAdvanceFeeFraud,
     isCryptoDoubling,
     isAmbiguousVerification,
@@ -584,6 +626,19 @@ export async function analyzeContentWithAI(
       finalScore = Math.min(20, finalScore);
       finalClassification = 'SAFE';
       requiresReview = false;
+    } else if (stage2.isAdvanceFeeAndIdentityFraud) {
+      // Advance-fee fraud, government/military impersonation, and identity theft
+      finalScore = Math.max(finalScore, 90);
+      finalClassification = 'SCAM';
+      requiresReview = true;
+      limitationsList.push('Stage 2 Security Engine flagged critical advance-fee fraud, authority impersonation, and identity theft pattern.');
+      stage2.indicators.forEach(ind => {
+        if (!detectedIndicators.includes(ind)) detectedIndicators.push(ind);
+      });
+      if (!evidenceList.includes(trimmed.slice(0, 150))) evidenceList.push(trimmed.slice(0, 150));
+      aiOutput.category = 'advance_fee_and_identity_fraud';
+      aiOutput.explanation = 'The sender claims to offer a confidential government contract, requests identity documents and demands an upfront registration fee in exchange for promised future payment. This combination strongly indicates a potential advance-fee scam and identity theft risk.';
+      aiOutput.recommended_action = 'Do not pay the registration fee or share identity documents. Independently verify the organization through official contact channels.';
     } else if (stage2.isInstitutionalCredentialRequest) {
       // Unauthorized institutional / university credential request without verified authorization
       finalScore = Math.max(finalScore, 75);
@@ -717,6 +772,17 @@ export async function analyzeContentWithAI(
     fallbackIntent = 'Normal peer-to-peer social interaction';
     fallbackAction = 'None';
     fallbackExplanation = 'No suspicious intent or harmful request detected.';
+  } else if (stage2.isAdvanceFeeAndIdentityFraud) {
+    fallbackScore = 90;
+    fallbackClass = 'SCAM';
+    fallbackIntent = 'Advance-fee fraud and identity theft through government/military impersonation';
+    fallbackAction = 'Pay advance registration fee and provide identity documents';
+    fallbackExplanation = 'The sender claims to offer a confidential government contract, requests identity documents and demands an upfront registration fee in exchange for promised future payment. This combination strongly indicates a potential advance-fee scam and identity theft risk.';
+    requiresReview = true;
+    stage2.indicators.forEach(ind => {
+      if (!fallbackIndicators.includes(ind)) fallbackIndicators.push(ind);
+    });
+    if (!fallbackEvidence.includes(trimmed.slice(0, 150))) fallbackEvidence.push(trimmed.slice(0, 150));
   } else if (stage2.isInstitutionalCredentialRequest) {
     fallbackScore = 75;
     fallbackClass = 'SUSPICIOUS';
@@ -812,7 +878,9 @@ export async function analyzeContentWithAI(
     detected_indicators: fallbackIndicators,
     evidence: fallbackEvidence,
     explanation: fallbackExplanation,
-    recommended_action: stage2.isInstitutionalCredentialRequest
+    recommended_action: stage2.isAdvanceFeeAndIdentityFraud
+      ? 'Do not pay the registration fee or share identity documents. Independently verify the organization through official contact channels.'
+      : stage2.isInstitutionalCredentialRequest
       ? "Do not share private credentials. Verify authorization through the university's official IT department."
       : fallbackClass === 'SAFE'
       ? 'No immediate defensive action required.'
@@ -825,7 +893,9 @@ export async function analyzeContentWithAI(
     requires_review: requiresReview,
 
     prediction: fallbackClass === 'SCAM' ? 'scam' : fallbackClass === 'SUSPICIOUS' ? 'suspicious' : 'genuine',
-    category: heuristicResult.category || 'unverified_content',
+    category: stage2.isAdvanceFeeAndIdentityFraud
+      ? 'advance_fee_and_identity_fraud'
+      : heuristicResult.category || 'unverified_content',
     indicators: legacyIndicators,
     recommendations: heuristicResult.recommendations,
     summary: `Stage 2 Heuristic security assessment (Risk Score: ${fallbackScore}/100, Level: ${fallbackRiskLevel}).`,
